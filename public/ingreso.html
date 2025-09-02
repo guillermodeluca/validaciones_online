@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ingreso Propietarios - Consulta de Inquilinos</title>
+    <!-- Tailwind CSS para estilos rápidos y responsivos -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+
+    <!-- PRODUCCIÓN: ¡ATENCIÓN! reCAPTCHA Enterprise API script (o v3 normal) -->
+    <!-- Este script carga la librería de reCAPTCHA. Es necesario si usas reCAPTCHA
+         en tu frontend para la verificación de acciones (como el login).
+         Para producción, DEBES descomentar la siguiente línea y reemplazar
+         'TU_CLAVE_PUBLICA_RECAPTCHA_SITE_KEY' con la clave de sitio (site key)
+         que obtuviste de Google reCAPTCHA. Asegúrate que sea la misma que
+         configuraste en App Check.
+         Si usas reCAPTCHA v3, la URL del script sería:
+         <script src="https://www.google.com/recaptcha/api.js?render=TU_CLAVE_PUBLICA_RECAPTCHA_SITE_KEY"></script>
+         Si usas reCAPTCHA Enterprise, la URL sería:
+         <script src="https://www.google.com/recaptcha/enterprise.js?render=TU_CLAVE_PUBLICA_RECAPTCHA_SITE_KEY"></script>
+    -->
+    <!-- <script src="https://www.google.com/recaptcha/enterprise.js?render=TU_CLAVE_PUBLICA_RECAPTCHA_SITE_KEY"></script> -->
+
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+        <h1 class="text-2xl font-bold text-center text-gray-800 mb-6">Panel de Propietarios</h1>
+
+        <!-- SECCIÓN DE AUTENTICACIÓN -->
+        <div id="auth-section" class="mb-6 p-4 bg-blue-50 rounded-lg">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Autenticación</h2>
+            <p id="auth-status" class="font-semibold text-gray-600 mb-4">Estado: No autenticado</p>
+            <div class="space-y-4">
+                <input type="email" id="emailInput" placeholder="Correo electrónico" value="contacto@tornillofeliz.com" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="passwordInput" placeholder="Contraseña" value="your-password" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex space-x-4 mt-4">
+                <button id="loginButton" class="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700">Iniciar Sesión</button>
+            </div>
+            <button id="logoutButton" class="w-full bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 mt-4 hidden">Cerrar Sesión</button>
+            <p class="text-sm text-gray-500 mt-2">Acceso para propietarios.</p>
+        </div>
+
+        <!-- NUEVA SECCIÓN: GESTIÓN DE MI VALIDACIÓN DE PROPIETARIO -->
+        <!-- NOTA: Esta sección comienza oculta y se mostrará al loguearse como propietario -->
+        <div id="owner-validation-management-section" class="mb-6 p-4 bg-yellow-50 rounded-lg hidden">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Mi Validación de Propietario</h2>
+            <p id="owner-validation-status" class="text-gray-600 mb-4">Estado de su validación: Cargando...</p>
+            <!-- Botón para dar de baja la validación del PROPIETARIO, inicialmente oculto -->
+            <!-- NOTA: Este botón se mostrará solo si se encuentra una validación activa para el propietario -->
+            <button id="deactivateOwnerValidationButton" class="w-full bg-red-500 text-white p-3 rounded-lg hover:bg-red-600 mt-4 hidden">Dar de Baja MI Validación Actual</button>
+        </div>
+
+        <!-- SECCIÓN DE CONSULTA DE INQUILINOS -->
+        <!-- NOTA: Esta sección comienza oculta y se mostrará al loguearse como propietario -->
+        <div id="tenant-query-section" class="mb-6 p-4 bg-green-50 rounded-lg hidden">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Consulta de Inquilinos Validados</h2>
+            <p class="text-gray-600 mb-4">Ingrese el código de validación proporcionado por el inquilino.</p>
+            <input type="text" id="tenantCodeInput" placeholder="Ej: USR-ARG-1001-34.567.890" value="USR-ARG-1001-34.567.890" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <button id="queryTenantButton" class="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700">Consultar Inquilino</button>
+            <p id="tenant-error-message" class="text-red-600 mt-2"></p>
+            <div id="tenant-results" class="mt-4 p-4 bg-gray-100 rounded-lg hidden"></div>
+        </div>
+    </div>
+
+    <!-- Carga la configuración de Firebase -->
+    <script type="module" src="./firebaseConfig.js"></script>
+    <!-- Carga el cliente de Firebase con Authentication, Firestore, Functions y App Check -->
+    <script type="module" src="./firebaseClient.js"></script>
+    <!-- Carga el script ESPECÍFICO de esta página -->
+    <script type="module" src="./ingreso.js"></script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Esta regla permite leer y escribir a cualquiera.
+    // Es para propósitos de desarrollo y pruebas y caduca en 2025.
+    // ¡Asegúrate de implementar reglas más seguras para producción!
+    match /{document=**} {
+      allow read, write: if request.time < timestamp.date(2025, 8, 23);
+    }
+  }
+}

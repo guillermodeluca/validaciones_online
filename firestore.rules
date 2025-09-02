@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ====================================================================================
+    // === Función auxiliar para identificar desarrolladores (UID específico) ===
+    // ====================================================================================
+    function isDeveloper() {
+      // **IMPORTANTE:** Usa el UID de tu cuenta de desarrollador que USAS para depurar.
+      // Asegúrate de que este UID sea el correcto de tu usuario de desarrollo.
+      return request.auth.uid == 'DxHQRjM8pueeB17aO048CMLlcIWC';
+    }
+
+    // ====================================================================================
+    // === Función auxiliar para verificar si el usuario tiene rol de 'admin' ===
+    // ====================================================================================
+    function isAdmin() {
+      // Un usuario es admin si está autenticado y su documento en 'users' tiene role: 'admin'
+      // Usa 'get' para leer el documento del usuario y verificar su rol.
+      return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ====================================================================================
+    // === REGLA: Acceso a documentos de usuarios por su propio UID o por desarrollador ===
+    // ====================================================================================
+    match /users/{userId} {
+      allow read: if request.auth.uid == userId || isDeveloper() || isAdmin(); // Agregamos isAdmin() para que los admins puedan ver otros perfiles si es necesario
+      allow write: if request.auth.uid == userId || isDeveloper() || isAdmin();
+    }
+
+    // ====================================================================================
+    // === REGLA: Acceso a documentos de validaciones ===
+    // ====================================================================================
+    match /validaciones/{validationId} {
+      // Permite lectura si es el propietario de la validación, un desarrollador, o un admin.
+      allow read: if resource.data.ownerUid == request.auth.uid || isDeveloper() || isAdmin();
+      // Ejemplo de escritura (ajusta según tus necesidades)
+      // allow update: if resource.data.ownerUid == request.auth.uid || isDeveloper() || isAdmin();
+      // allow create: if request.auth.uid != null; // Por ejemplo, cualquier usuario autenticado puede crear
+    }
+
+    // ====================================================================================
+    // === REGLA: Acceso a documentos de métricas generales (para administradores) ===
+    // ====================================================================================
+    match /stats/dashboard_metrics {
+      allow read: if isAdmin() || isDeveloper(); // Permite la lectura del documento de métricas a admins y desarrolladores
+      // Las escrituras a este documento normalmente las realizan Cloud Functions con privilegios de Admin SDK,
+      // por lo que no necesitan una regla 'allow write' aquí, a menos que quieras permitir escrituras directas desde el frontend.
+    }
+
+    // ====================================================================================
+    // === REGLA GENERAL DE ACCESO (catch-all para otras colecciones) ===
+    // ====================================================================================
+    // Esta regla cubre cualquier documento en cualquier colección que no haya sido
+    // cubierto por una regla 'match' más específica arriba.
+    // En producción, esta regla debería ser mucho más restrictiva o eliminada.
+    match /{document=**} {
+      allow read, write: if isDeveloper();
+    }
+  }
+}

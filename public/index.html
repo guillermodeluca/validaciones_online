@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bienvenido a Validaciones Online</title>
+    <!-- Tailwind CSS desde CDN para un estilo rápido y moderno -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Fuente Inter de Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .btn-primary { @apply bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition duration-300; }
+        .btn-secondary { @apply bg-gray-600 text-white p-3 rounded-lg hover:bg-gray-700 transition duration-300; }
+        .input-field { @apply w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500; }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-lg shadow-xl max-w-md w-full text-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6">Bienvenido a Validaciones Online</h1>
+
+        <!-- Sección de Estado de Autenticación y Navegación para usuarios logueados -->
+        <div id="logged-in-section" class="hidden">
+            <p class="text-lg font-semibold text-gray-700 mb-4">
+                <span id="auth-display-email"></span> (<span id="auth-display-role"></span>)
+            </p>
+            <div class="space-y-3 mb-6">
+                <a href="/consulta.html" class="btn-primary block">Ir a Consulta de Validaciones</a>
+                <a href="/propietario_test.html" class="btn-primary block">Crear Validación (Propietario)</a>
+                <a href="/admin.html" class="btn-secondary block" id="admin-link">Panel Administrativo</a>
+                <!-- Agrega más enlaces si tienes otras páginas -->
+                <!-- <a href="/inquilino_test.html" class="btn-primary block">Crear Validación (Inquilino)</a> -->
+            </div>
+            <button id="logout-button" class="btn-secondary w-full">Cerrar Sesión</button>
+        </div>
+
+        <!-- Sección de Login para usuarios no autenticados -->
+        <div id="login-section" class="space-y-4">
+            <h2 class="text-2xl font-semibold text-gray-700 mb-4">Iniciar Sesión</h2>
+            <input type="email" id="login-email" placeholder="Correo electrónico" value="admin@example.com" class="input-field">
+            <input type="password" id="login-password" placeholder="Contraseña" value="admin-password" class="input-field">
+            <button id="login-button" class="btn-primary w-full">Entrar</button>
+            <p class="text-sm text-gray-500 mt-4">
+                ¿No tienes cuenta? Contacta a un administrador para tu registro.
+                <!-- Si deseas un registro abierto, descomenta el botón de registro -->
+                <!-- <button id="register-button" class="btn-secondary w-full mt-2">Registrarse</button> -->
+            </p>
+        </div>
+
+        <div id="status-message" class="mt-6 p-3 rounded-lg text-sm hidden"></div>
+    </div>
+
+    <!-- Carga la configuración de Firebase -->
+    <script type="module" src="./firebaseConfig.js"></script>
+    <!-- Carga el cliente de Firebase con Authentication, Firestore, Functions y App Check -->
+    <script type="module" src="./firebaseClient.js"></script>
+    <!-- Carga el script ESPECÍFICO de esta página -->
+    <script type="module" src="./index.js"></script>
+</body>
+</html>

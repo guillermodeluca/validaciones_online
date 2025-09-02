@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Administrativo</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        /* Estilos adicionales si es necesario, por ejemplo, para ocultar/mostrar elementos */
+        .hidden { display: none; }
+        .validation-card {
+            border: 1px solid #e2e8f0; /* gray-300 */
+            border-radius: 0.5rem; /* rounded-lg */
+            padding: 1rem; /* p-4 */
+            margin-bottom: 0.75rem; /* space-y-3 si hay varios, o mb-3 */
+        }
+        .validation-card.active {
+            border-color: #38a169; /* green-600 */
+            background-color: #ecfdf5; /* green-50 */
+        }
+        .validation-card.expired {
+            border-color: #ef4444; /* red-500 */
+            background-color: #fef2f2; /* red-50 */
+        }
+        .validation-card.pending {
+            border-color: #f6ad55; /* orange-400 */
+            background-color: #fffaf0; /* orange-50 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-lg shadow-lg max-w-2xl w-full">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Panel Administrativo</h1>
+
+        <!-- SECCIÓN DE AUTENTICACIÓN -->
+        <div id="auth-section" class="mb-6 p-6 bg-blue-50 rounded-lg shadow-inner">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Acceso de Administrador</h2>
+            <p id="auth-status" class="font-semibold text-gray-600 mb-4">Estado: No autenticado</p>
+            <div class="space-y-4">
+                <input type="email" id="emailInput" placeholder="Correo electrónico" value="admin@example.com" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="passwordInput" placeholder="Contraseña" value="admin-password" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div class="flex space-x-4 mt-4">
+                <button id="loginButton" class="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition duration-200">Iniciar Sesión</button>
+            </div>
+            <button id="logoutButton" class="w-full bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition duration-200 mt-4 hidden">Cerrar Sesión</button>
+            <p class="text-sm text-gray-500 mt-2 text-center">Solo para administradores registrados en Firebase Auth y con rol 'admin' en Firestore.</p>
+        </div>
+
+        <!-- SECCIÓN DE ACCIONES ADMINISTRATIVAS (VISIBLES SOLO PARA ADMINS) -->
+        <div id="admin-dashboard" class="hidden space-y-8">
+
+            <!-- SECCIÓN DE BÚSQUEDA DE USUARIO Y HISTORIAL DE VALIDACIONES -->
+            <div class="p-6 bg-purple-50 rounded-lg shadow-inner">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Buscar Historial de Validaciones</h2>
+                <input type="text" id="searchDniInput" placeholder="DNI del usuario" class="w-full p-3 border border-gray-300 rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <input type="text" id="searchNameInput" placeholder="Nombre y Apellido del usuario" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <button id="searchHistoryButton" class="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition duration-200">Buscar Historial</button>
+
+                <p id="searchStatusMessage" class="text-sm mt-4 text-center hidden"></p>
+
+                <div id="historyResultsSection" class="mt-6 p-4 bg-gray-100 rounded-lg hidden">
+                    <h3 class="font-bold text-gray-800 mb-4">Resultados de la Búsqueda:</h3>
+                    <div id="validationHistoryList" class="space-y-4">
+                        <!-- Aquí se inyectarán las validaciones -->
+                    </div>
+                </div>
+            </div>
+                        <!-- SECCIÓN DE MÉTRICAS GENERALES -->
+            <div class="p-6 bg-blue-100 rounded-lg shadow-inner">
+                <h2 class="text-xl font-semibold text-blue-800 mb-4">Métricas Generales del Sistema</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
+                    <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                        <p class="text-gray-600">Total Usuarios Registrados</p>
+                        <p id="totalUsersCount" class="text-3xl font-bold text-blue-700">0</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                        <p class="text-gray-600">Propietarios</p>
+                        <p id="totalPropietariosCount" class="text-2xl font-bold text-blue-600">0</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
+                        <p class="text-gray-600">Inquilinos</p>
+                        <p id="totalInquilinosCount" class="text-2xl font-bold text-blue-600">0</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg shadow-sm col-span-full">
+                        <p class="text-gray-600">Total Validaciones Creadas</p>
+                        <p id="totalValidacionesCount" class="text-3xl font-bold text-blue-700">0</p>
+                    </div>
+                    <!-- Aquí se pueden añadir contadores de admins, colaboradores, etc. si se implementan -->
+                </div>
+            </div>
+
+
+            <!-- SECCIÓN DE ACCIONES DE VALIDACIÓN (EXISTENTES, COMO EJEMPLO DE ACCIONES ADMIN) -->
+            <div class="p-6 bg-green-50 rounded-lg shadow-inner">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Acciones de Validación Manuales</h2>
+                <input type="text" id="adminSearchId" placeholder="ID de Validación (Ej: VAL2023016)" value="VAL2023016" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
+                <div class="flex space-x-4">
+                    <button id="certifyButton" class="w-full bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition duration-200">Simular Certificación</button>
+                    <button id="payButton" class="w-full bg-yellow-600 text-white p-3 rounded-lg hover:bg-yellow-700 transition duration-200">Simular Pago Confirmado</button>
+                </div>
+                <p id="actionResultMessage" class="text-sm mt-4 text-center hidden"></p>
+            </div>
+            
+            <!-- Aquí puedes añadir más secciones para recaudación, gestión de colaboradores, etc. -->
+
+        </div>
+    </div>
+
+    <!-- Carga la configuración de Firebase -->
+    <script type="module" src="./firebaseConfig.js"></script>
+    <!-- Carga el cliente de Firebase con Authentication, Firestore, Functions y App Check -->
+    <script type="module" src="./firebaseClient.js"></script>
+    <!-- Carga el script ESPECÍFICO de esta página -->
+    <script type="module" src="./admin.js"></script>
+</body>
+</html>
