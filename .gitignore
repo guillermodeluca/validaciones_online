@@ -17,7 +17,8 @@ yarn-error.log
 # Crucial for sensitive data. Do NOT commit your local .env file.
 # We found it was causing issues by accidentally exposing secrets.
 .env
-
+.env.local # <-- SUGERENCIA: Añadir si usas .env.local
+.env.secret
 # Local configuration files for "init functions" (as suggested by Firebase CLI)
 # These are used by the Firebase local emulator.
 *.local
@@ -47,6 +48,7 @@ hosting-debug.log
 emulators_data/ # Default emulator data directory
 nueva_emulators_data/ # Your specific emulator data directory
 emulator_data/ # Another specific emulator data directory
+mis_datos_emuladores/ # <-- SUGERENCIA: Añadir tu carpeta específica
 
 # Sensitive Firebase credentials
 # ------------------------------
@@ -62,9 +64,16 @@ serviceAccountKey.json
 *.swp # Vim swap files
 Thumbs.db # Windows thumbnail cache
 
+# <-- CRÍTICO: Añadir para ignorar los metadatos de Windows (:Zone.Identifier)
+*:Zone.Identifier
 
 # Other temporary or generated files
 # ----------------------------------
 *.tmp
 *.bak
 .cache/
+
+
+# no subir secrets
+.env.local
+serviceAccountKey.json
