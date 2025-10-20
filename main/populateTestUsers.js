@@ -6,23 +6,47 @@ const admin = require('firebase-admin');
 const { v4: uuidv4 } = require('uuid'); // Para generar UUIDs
 
 // --- Inicialización del Admin SDK ---
-// ¡ATENCIÓN!: Asegúrate de que la ruta a serviceAccountKey.json sea CORRECTA para tu proyecto.
-// Es común que esté en el directorio raíz o en un directorio específico.
-const serviceAccount = require('../serviceAccountKey.json'); 
-
+// ¡IMPORTANTE!: Esta sección ahora maneja la conexión a los emuladores o a producción.
+// Si las variables de entorno del emulador están configuradas (p.ej. al ejecutar 'firebase emulators:start'),
+// el Admin SDK se conectará automáticamente a ellos.
+// Si no están configuradas, intentará usar 'serviceAccountKey.json' para conectar a producción.
 if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
+    if (process.env.FIRESTORE_EMULATOR_HOST && process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+        console.log(`Conectando Admin SDK al emulador de Firestore en: ${process.env.FIRESTORE_EMULATOR_HOST}`);
+        console.log(`Conectando Admin SDK al emulador de Auth en: ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
+        
+        // Inicializa el Admin SDK sin credenciales específicas; confiará en las variables de entorno del emulador.
+        admin.initializeApp({
+            // Puedes usar un project ID genérico o el de tu proyecto para emulación
+           projectId: 'validacionesonline-26d4c'
+        });
+
+        // Configura explícitamente Firestore para usar el host del emulador.
+        admin.firestore().settings({
+            host: process.env.FIRESTORE_EMULATOR_HOST,
+            ssl: false, // El emulador no usa SSL/TLS
+            ignoreUndefinedProperties: true, // Buena práctica
+        });
+
+    } else {
+        // Si no se detectan variables de entorno del emulador, conectar a producción.
+        // ¡ATENCIÓN!: La ruta a serviceAccountKey.json debe ser CORRECTA para tu proyecto.
+        // Es común que esté en el directorio raíz o en un directorio específico (p.ej. '../serviceAccountKey.json').
+        try {
+            const serviceAccount = require('../serviceAccountKey.json'); 
+            console.log('Conectando Admin SDK a la base de datos de producción (no se detectó configuración de emulador).');
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount),
+            });
+        } catch (e) {
+            console.error('Error: serviceAccountKey.json no encontrado o inaccesible. No se puede conectar a Firebase sin credenciales o configuración de emulador.');
+            console.error('Asegúrate de que serviceAccountKey.json existe en la ruta correcta, o que los emuladores están corriendo.');
+            process.exit(1); // Salir si no se puede inicializar
+        }
+    }
 }
 const db = admin.firestore();
-
-// --- CONEXIÓN A LOS EMULADORES ---
-// IMPORTANTE: Asegúrate de que estas variables de entorno estén configuradas
-// ANTES de ejecutar este script en tu terminal. Esto redirige el Admin SDK a los emuladores.
-// Puedes configurarlas así en tu terminal (antes de ejecutar 'node populateTestUsers.js'):
-// export FIRESTORE_EMULATOR_HOST="127.0.0.1:8080"
-// export FIREBASE_AUTH_EMULATOR_HOST="127.0.0.1:9099"
+const auth = admin.auth(); // También obtenemos la instancia de Auth aquí
 
 // --- Datos de Prueba ---
 const testUsersData = [
@@ -317,7 +341,7 @@ async function populateTestUsers() {
 
         // 1. Crear o obtener usuario en Firebase Authentication
         try {
-            const userRecord = await admin.auth().createUser({
+            const userRecord = await auth.createUser({ // Usar la instancia 'auth'
                 email: userData.authEmail,
                 password: userData.authPassword,
                 displayName: userData.identityData.nombreCompleto || userData.identityData.razonSocial || userData.authEmail.split('@')[0],
@@ -326,7 +350,7 @@ async function populateTestUsers() {
             console.log(`  ✅ Usuario Auth creado: ${userData.authEmail} (UID: ${uid})`);
         } catch (error) {
             if (error.code === 'auth/email-already-exists') {
-                const userRecord = await admin.auth().getUserByEmail(userData.authEmail);
+                const userRecord = await auth.getUserByEmail(userData.authEmail); // Usar la instancia 'auth'
                 uid = userRecord.uid;
                 console.log(`  ⚠️ Usuario Auth ya existe: ${userData.authEmail} (UID: ${uid})`);
             } else {
@@ -417,4 +441,3 @@ populateTestUsers()
         console.error('Error general durante la población de usuarios:', error);
         process.exit(1);
     });
-

@@ -1,203 +1,405 @@
 // public/propietario_test.js
 
-// Importa las instancias de Firebase que necesitas desde firebaseClient.js
-import { functions, httpsCallable } from './firebaseClient.js';
-
-// --- CLAVE PÚBLICA DE RECAPTCHA ENTERPRISE/v3 ---
-// DEBES reemplazar 'TU_CLAVE_PUBLICA_RECAPTCHA_ENTERPRISE' con la clave de sitio (pública) real
-// que obtuviste de la consola de Google reCAPTCHA. Esta clave se usa si llamas a grecaptcha.enterprise.execute()
-// directamente en esta página. Asegúrate de que esta clave coincide con la que usas
-// en el script de reCAPTCHA en el HTML y la misma que pasas a App Check en firebaseClient.js
-const RECAPTCHA_SITE_KEY = "TU_CLAVE_PUBLICA_RECAPTCHA_ENTERPRISE"; // Puedes cambiar el nombre de la variable si lo deseas
-
-
-// Definición de la Cloud Function Callable
-const crearNuevaValidacionCallable = httpsCallable(functions, 'crearNuevaValidacion');
-
-// Referencias a elementos del DOM
-const resultsDiv = document.getElementById('results');
-const validationForm = document.getElementById('validationForm');
-const createButton = document.getElementById('createButton');
-
-const emailContactoPropietarioInput = document.getElementById('emailContactoPropietario');
-// NUEVO: Referencia al campo de confirmación de email
-const confirmEmailContactoPropietarioInput = document.getElementById('confirmEmailContactoPropietario');
-const passwordPropietarioInput = document.getElementById('passwordPropietario');
-const confirmPasswordPropietarioInput = document.getElementById('confirmPasswordPropietario');
+// *********************************************************************************
+// * 1. IMPORTACIONES (TODO DESDE firebaseClient.js)                               *
+// *********************************************************************************
+// Importa las instancias de Firebase (db, auth) y las funciones que necesitas
+// directamente desde firebaseClient.js
+import { db, auth, onAuthStateChanged, signOut, doc, getDoc } from './firebaseClient.js';
+import { saveUserProfileAndGenerateFiscalData } from './userService.js'; // Importa la función modular
 
 
 
-// Función auxiliar para mostrar resultados
-function displayResult(message, isError = false, targetDiv = resultsDiv) {
-    targetDiv.textContent = message;
-    targetDiv.style.backgroundColor = isError ? '#ffe6e6' : '#e6ffe6';
-    targetDiv.className = isError ? 'results error-message' : 'results';
+// *********************************************************************************
+// * 2. REFERENCIAS A ELEMENTOS DEL DOM                                            *
+// *********************************************************************************
+const loadingStatusDiv = document.getElementById('loadingStatus');
+const messageDisplay = document.getElementById('messageDisplay');
+const profileForm = document.getElementById('profileForm');
+const saveProfileBtn = document.getElementById('saveProfileBtn');
+const logoutBtn = document.getElementById('logoutBtn');
+
+// Campos de datos validados (Equifax)
+const fullNameUsuarioInput = document.getElementById('fullNameUsuario');
+const documentNumberUsuarioInput = document.getElementById('documentNumberUsuario');
+const genderUsuarioInput = document.getElementById('genderUsuario');
+const birthdateUsuarioInput = document.getElementById('birthdateUsuario');
+const validationStatusUsuarioInput = document.getElementById('validationStatusUsuario');
+const validationExpiresAtUsuarioInput = document.getElementById('validationExpiresAtUsuario');
+
+// REFERENCIAS PARA EMAIL Y CONTRASEÑA
+const emailUsuarioInput = document.getElementById('emailUsuario');
+const emailUsuarioConfirmacionInput = document.getElementById('emailUsuarioConfirmacion');
+const emailMatchStatusSpan = document.getElementById('emailMatchStatus');
+
+const passwordUsuarioInput = document.getElementById('passwordUsuario');
+const passwordUsuarioConfirmacionInput = document.getElementById('passwordUsuarioConfirmacion');
+const passwordMatchStatusSpan = document.getElementById('passwordMatchStatus');
+
+// Campos de datos adicionales (para completar por el usuario)
+const razonSocialPropietarioInput = document.getElementById('razonSocialPropietario');
+const direccionPropietarioInput = document.getElementById('direccionPropietario');
+const telefonoContactoPropietarioInput = document.getElementById('telefonoContactoPropietario');
+const paginaWebPropietarioInput = document.getElementById('paginaWebPropietario');
+const aliasBancarioPropietarioInput = document.getElementById('aliasBancarioPropietario');
+const habilitacionMunicipalPropietarioInput = document.getElementById('habilitacionMunicipalPropietario');
+
+
+// *********************************************************************************
+// * 3. VARIABLES DE ESTADO GLOBALES                                               *
+// *********************************************************************************
+let currentUserUID = null;
+
+
+// *********************************************************************************
+// * 4. FUNCIONES DE UTILIDAD (Mantienen la lógica de UI)                          *
+// *********************************************************************************
+
+function showStatusMessage(message, type) {
+    if (loadingStatusDiv) {
+        loadingStatusDiv.textContent = message;
+        loadingStatusDiv.className = `status-message status-${type}`;
+        loadingStatusDiv.classList.remove('hidden');
+    } else {
+        console.log(`STATUS [${type.toUpperCase()}]: ${message}`);
+    }
 }
 
-// --- FUNCIÓN DE VALIDACIÓN DE COMPLEJIDAD DE CONTRASEÑA ---
-function validatePasswordComplexity(password) {
-    const minLength = 8;
-    if (password.length < minLength) {
-        return `La contraseña debe tener al menos ${minLength} caracteres.`;
+function displayMessage(type, message, duration = 5000) {
+    if (messageDisplay) {
+        messageDisplay.classList.remove('hidden', 'success', 'error', 'info', 'warning');
+        messageDisplay.classList.add(type);
+        messageDisplay.textContent = message;
+        if (duration > 0) {
+            setTimeout(() => {
+                messageDisplay.classList.add('hidden');
+            }, duration);
+        }
+    } else {
+        console.log(`MESSAGE [${type.toUpperCase()}]: ${message}`);
     }
-
-    let strength = 0;
-    // Al menos una minúscula
-    if (/[a-z]/.test(password)) strength++;
-    // Al menos una mayúscula
-    if (/[A-Z]/.test(password)) strength++;
-    // Al menos un número
-    if (/[0-9]/.test(password)) strength++;
-    // Al menos un caracter especial
-    if (/[^A-Za-z0-9]/.test(password)) strength++; // Cualquier cosa que no sea letra o número
-
-    if (strength < 3) {
-        return "La contraseña debe contener caracteres de al menos 3 de las 4 categorías: minúsculas, mayúsculas, números, símbolos.";
-    }
-
-    return null; // Si no hay errores, retorna null
 }
-// --- FIN FUNCIÓN ---
 
-// Event listener para el envío del formulario
-validationForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+function checkEmailMatch() {
+    if (!emailUsuarioInput || !emailUsuarioConfirmacionInput || !emailMatchStatusSpan) return false;
 
-    resultsDiv.textContent = 'Procesando solicitud...';
-    resultsDiv.style.backgroundColor = '#e9e9e9';
-    resultsDiv.className = 'results';
+    const emailPrincipal = emailUsuarioInput.value.trim();
+    const emailConfirmacion = emailUsuarioConfirmacionInput.value.trim();
 
-    // Obtener valores de los campos
-    const email = emailContactoPropietarioInput.value;
-    // NUEVO: Obtener el valor del campo de confirmación de email
-    const emailConfirmation = confirmEmailContactoPropietarioInput.value; 
-    const password = passwordPropietarioInput.value;
-    const confirmPassword = confirmPasswordPropietarioInput.value;
+    emailMatchStatusSpan.className = 'match-status';
 
-    let currentSearchId = document.getElementById('searchIdPropietario').value.trim();
-    const tipoUsuario = 'propietario';
-
-    // --- Validación de email y contraseñas en el cliente ---
-    if (!email) {
-        displayResult('Error: El email de contacto es obligatorio.', true);
-        return;
+    if (emailPrincipal === '' && emailConfirmacion === '') {
+        emailMatchStatusSpan.textContent = '';
+        return false;
+    } else if (emailPrincipal === emailConfirmacion && emailPrincipal !== '') {
+        emailMatchStatusSpan.textContent = 'Emails coinciden';
+        emailMatchStatusSpan.className += ' success';
+        return true;
+    } else {
+        emailMatchStatusSpan.textContent = 'Emails NO coinciden';
+        emailMatchStatusSpan.className += ' error';
+        return false;
     }
-    // NUEVO: Validación del campo de confirmación de email
-    if (!emailConfirmation) {
-        displayResult('Error: Debe confirmar el email de contacto.', true);
-        return;
-    }
-    if (email !== emailConfirmation) {
-        displayResult('Error: Los emails de contacto no coinciden.', true);
-        return;
-    }
+}
 
-    if (password !== confirmPassword) {
-        displayResult('Error: Las contraseñas no coinciden.', true);
-        return;
+function checkPasswordMatch() {
+    if (!passwordUsuarioInput || !passwordUsuarioConfirmacionInput || !passwordMatchStatusSpan) return false;
+
+    const passwordPrincipal = passwordUsuarioInput.value.trim();
+    const passwordConfirmacion = passwordUsuarioConfirmacionInput.value.trim();
+
+    passwordMatchStatusSpan.className = 'match-status';
+
+    if (passwordPrincipal === '' && passwordConfirmacion === '') {
+        passwordMatchStatusSpan.textContent = '';
+        return false;
     }
 
-    // APLICAR VALIDACIÓN DE COMPLEJIDAD
-    const passwordError = validatePasswordComplexity(password);
-    if (passwordError) {
-        displayResult(`Error de contraseña: ${passwordError}`, true);
+    if (passwordPrincipal.length < 8) {
+        passwordMatchStatusSpan.textContent = 'Contraseña: mínimo 8 caracteres.';
+        passwordMatchStatusSpan.className += ' error';
+        return false;
+    }
+
+    const hasUpperCase = /[A-Z]/.test(passwordPrincipal);
+    const hasLowerCase = /[a-z]/.test(passwordPrincipal);
+    const hasNumbers = /[0-9]/.test(passwordPrincipal);
+    const hasSpecial = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]+/.test(passwordPrincipal);
+
+    let strengthCriteriaMet = 0;
+    if (hasUpperCase) strengthCriteriaMet++;
+    if (hasLowerCase) strengthCriteriaMet++;
+    if (hasNumbers) strengthCriteriaMet++;
+    if (hasSpecial) strengthCriteriaMet++;
+
+    if (strengthCriteriaMet < 3) {
+        passwordMatchStatusSpan.textContent = 'Contraseña débil: requiere al menos 3 de 4 tipos (Mayúscula, minúscula, número, símbolo).';
+        passwordMatchStatusSpan.className += ' error';
+        return false;
+    }
+
+    if (passwordPrincipal === passwordConfirmacion) {
+        passwordMatchStatusSpan.textContent = 'Contraseñas coinciden';
+        passwordMatchStatusSpan.className += ' success';
+        return true;
+    } else {
+        passwordMatchStatusSpan.textContent = 'Contraseñas NO coinciden';
+        passwordMatchStatusSpan.className += ' error';
+        return false;
+    }
+}
+
+function updateSaveButtonState() {
+    const emailsOk = checkEmailMatch();
+    const passwordsOk = checkPasswordMatch();
+    if (saveProfileBtn) {
+        const profileFieldsFilled = razonSocialPropietarioInput.value.trim() !== '' &&
+                                    direccionPropietarioInput.value.trim() !== '' &&
+                                    telefonoContactoPropietarioInput.value.trim() !== '' &&
+                                    paginaWebPropietarioInput.value.trim() !== '' &&
+                                    aliasBancarioPropietarioInput.value.trim() !== '' &&
+                                    habilitacionMunicipalPropietarioInput.value.trim() !== '';
+
+        saveProfileBtn.disabled = !(emailsOk && passwordsOk && profileFieldsFilled);
+        if (!saveProfileBtn.disabled) {
+            saveProfileBtn.textContent = 'Guardar Perfil';
+        } else {
+            saveProfileBtn.textContent = 'Complete todos los campos';
+        }
+    }
+}
+
+function disableSaveButton() {
+    if (saveProfileBtn) {
+        saveProfileBtn.disabled = true;
+        saveProfileBtn.textContent = 'Guardando...';
+    }
+}
+
+async function loadUserProfile(user) {
+    showStatusMessage('Cargando datos del perfil...', 'info');
+    if (!user) {
+        console.log("No hay usuario autenticado.");
+        displayMessage('error', 'Error: Usuario no autenticado para cargar perfil.', 0);
+        if (profileForm) profileForm.classList.add('hidden');
         return;
     }
-    // --- Fin Validación ---
-
-    createButton.disabled = true;
-    createButton.textContent = 'Creando...';
+    currentUserUID = user.uid;
 
     try {
-        // Determinar si estamos en un entorno de desarrollo local (para App Check debug token)
-        const IS_LOCAL_DEV = window.location.hostname === "localhost" || window.location.hostname.startsWith("127.0.0.1");
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDocSnap = await getDoc(userDocRef);
 
-        let recaptchaToken = null;
-        // Si usas reCAPTCHA Enterprise directamente para esta acción
-        // y no estás en desarrollo local.
-        if (!IS_LOCAL_DEV && typeof grecaptcha !== 'undefined' && typeof grecaptcha.enterprise !== 'undefined') {
-            try {
-                // Ejecuta reCAPTCHA Enterprise para obtener un token de verificación.
-                recaptchaToken = await grecaptcha.enterprise.execute(RECAPTCHA_SITE_KEY, { action: 'crear_validacion' });
-                console.log("reCAPTCHA Enterprise Token generado:", recaptchaToken);
-            } catch (e) {
-                console.error("Error al generar el token de reCAPTCHA Enterprise:", e);
-                displayResult("Error de seguridad (reCAPTCHA). Intente de nuevo.", true);
-                createButton.disabled = false;
-                createButton.textContent = 'Crear Nueva Validación';
-                return;
+        if (userDocSnap.exists()) {
+            const userData = userDocSnap.data();
+            console.log("DEBUG: Datos del usuario cargados (completo):", JSON.stringify(userData, null, 2));
+
+            const validationProcess = userData.validationProcess || {};
+            const equifaxData = validationProcess.equifax || {};
+            const personData = equifaxData.person || {};
+
+            // Rellenar campos de datos validados por Equifax (datos de persona)
+            if (fullNameUsuarioInput) {
+                fullNameUsuarioInput.value = personData.fullName || 'N/A';
             }
-        } else if (IS_LOCAL_DEV) {
-            console.log("Modo de desarrollo: Omitiendo generación de reCAPTCHA token en el cliente.");
+            if (documentNumberUsuarioInput) {
+                documentNumberUsuarioInput.value = personData.documentNumber || 'N/A';
+            }
+            if (genderUsuarioInput) {
+                genderUsuarioInput.value = personData.gender || 'N/A';
+            }
+            if (birthdateUsuarioInput) {
+                birthdateUsuarioInput.value = personData.birthdate || 'N/A';
+            }
+
+            if (validationStatusUsuarioInput) {
+                validationStatusUsuarioInput.value = validationProcess.status || 'Pendiente';
+            }
+
+            if (validationExpiresAtUsuarioInput) {
+                const validatedAt = validationProcess.lastUpdated && typeof validationProcess.lastUpdated.toDate === 'function' ? validationProcess.lastUpdated.toDate() : null;
+                if (validatedAt) {
+                    const expiresDate = new Date(validatedAt);
+                    expiresDate.setFullYear(expiresDate.getFullYear() + 1); // 1 año para propietarios
+                    validationExpiresAtUsuarioInput.value = expiresDate.toLocaleDateString();
+                } else {
+                    validationExpiresAtUsuarioInput.value = 'N/A';
+                }
+            }
+
+            // --- Rellenar campos de EMAIL (dejar vacío para que el usuario ingrese si es la primera vez) ---
+            if (emailUsuarioInput) emailUsuarioInput.value = userData.email || '';
+            if (emailUsuarioConfirmacionInput) emailUsuarioConfirmacionInput.value = userData.email || '';
+
+            // Contraseña NUNCA se pre-rellena por seguridad
+            if (passwordUsuarioInput) passwordUsuarioInput.value = '';
+            if (passwordUsuarioConfirmacionInput) passwordUsuarioConfirmacionInput.value = '';
+
+            // Rellenar campos de datos adicionales si ya existen
+            if (razonSocialPropietarioInput) razonSocialPropietarioInput.value = userData.razonSocial || '';
+            if (direccionPropietarioInput) direccionPropietarioInput.value = userData.direccion || '';
+            if (telefonoContactoPropietarioInput) telefonoContactoPropietarioInput.value = userData.telefonoContacto || '';
+            if (paginaWebPropietarioInput) paginaWebPropietarioInput.value = userData.paginaWeb || '';
+            if (aliasBancarioPropietarioInput) aliasBancarioPropietarioInput.value = userData.aliasBancario || '';
+            if (habilitacionMunicipalPropietarioInput) habilitacionMunicipalPropietarioInput.value = userData.habilitacionMunicipal || '';
+
+            if (profileForm) profileForm.classList.remove('hidden');
+            if (loadingStatusDiv) loadingStatusDiv.classList.add('hidden');
+            displayMessage('success', 'Perfil cargado exitosamente.', 3000);
+
+            updateSaveButtonState();
+
         } else {
-            console.warn("reCAPTCHA Enterprise no está disponible o la clave no está configurada para producción.");
+            displayMessage('error', 'Error: Documento de perfil no encontrado. Por favor, completa tu validación de identidad.', 0);
+            if (profileForm) profileForm.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error("Error al cargar datos del usuario desde Firestore:", error);
+        displayMessage('error', 'Error al cargar perfil: ' + error.message, 0);
+        if (profileForm) profileForm.classList.add('hidden');
+    } finally {
+        // El botón de guardar se habilitará/deshabilitará en updateSaveButtonState()
+    }
+}
+
+
+async function saveProfile(e) {
+    e.preventDefault();
+    disableSaveButton(); // Deshabilita el botón mientras se guarda
+    showStatusMessage('Guardando cambios...', 'info');
+
+    try {
+        const user = auth.currentUser;
+        if (!user) {
+            throw new Error('Usuario no autenticado para guardar perfil.');
         }
 
-        const dataToSend = {
-            searchId: currentSearchId,
-            tipoUsuario: tipoUsuario,
-            password: password,
-            datosIdentidad: {
-                pais: document.getElementById('paisPropietario').value,
-                localidad: document.getElementById('localidadPropietario').value,
-                direccion: document.getElementById('direccionPropietario').value,
-                titular: document.getElementById('titularPropietario').value,
-                razonSocial: document.getElementById('razonSocialPropietario').value,
-                identificacionFiscalTipo: document.getElementById('identificacionFiscalTipoPropietario').value,
-                identificacionFiscalNumero: document.getElementById('identificacionFiscalNumeroPropietario').value,
-                emailContacto: email,
-                telefonoContacto: document.getElementById('telefonoContactoPropietario').value,
-                paginaWeb: document.getElementById('paginaWebPropietario').value || '',
-                alias: document.getElementById('aliasBancarioPropietario').value || '',
-                habilitacionMunicipal: document.getElementById('habilitacionMunicipalPropietario').value || '',
-            }
+        // --- VALIDACIONES FINALES DE CAMPOS ---
+        if (!checkEmailMatch()) {
+            throw new Error('Los emails no coinciden. Por favor, verifique.');
+        }
+        if (!checkPasswordMatch()) {
+            throw new Error('Las contraseñas no coinciden o son inválidas (mínimo 8 caracteres, y 3 de 4 tipos). Por favor, verifique.');
+        }
+
+        const emailToSave = emailUsuarioInput.value.trim();
+        const passwordToSave = passwordUsuarioInput.value.trim();
+
+        // Recolectar datos específicos del perfil de propietario
+        const ownerProfileData = {
+            razonSocial: razonSocialPropietarioInput.value.trim(),
+            direccion: direccionPropietarioInput.value.trim(),
+            telefonoContacto: telefonoContactoPropietarioInput.value.trim(),
+            paginaWeb: paginaWebPropietarioInput.value.trim(),
+            aliasBancario: aliasBancarioPropietarioInput.value.trim(),
+            habilitacionMunicipal: habilitacionMunicipalPropietarioInput.value.trim(),
+            fullName: fullNameUsuarioInput.value.trim() // Asumiendo que Equifax lo tiene
         };
 
-        // Si se generó un token reCAPTCHA, añádelo al payload
-        if (recaptchaToken) {
-            dataToSend.recaptchaToken = recaptchaToken;
-        }
+        // LLAMADA ÚNICA Y CORRECTA a la función modularizada para manejar autenticación y Firestore
+        await saveUserProfileAndGenerateFiscalData(
+            user.uid,
+            ownerProfileData,
+            emailToSave,
+            passwordToSave,
+            'propietario' // Rol específico
+        );
 
-        console.log("--- Depuración Frontend ---");
-        console.log("Objeto dataToSend que se enviará a Cloud Function:", dataToSend);
-        console.log("--- Fin Depuración Frontend ---");
-
-        const result = await crearNuevaValidacionCallable(dataToSend);
-
-        console.log("Respuesta completa de la Cloud Function:", result);
-
-        const responseData = result.data;
-        const successMessage = `¡Éxito! ${responseData.mensaje}\nID de Validación: ${responseData.id}\nID Interno: ${responseData.internalId}`;
-        displayResult(successMessage);
-
-        passwordPropietarioInput.value = "";
-        confirmPasswordPropietarioInput.value = "";
+        // Si el await anterior NO lanzó un error, entonces el updateDoc del usuario fue exitoso.
+        displayMessage('success', 'Perfil de usuario guardado exitosamente.', 3000);
+        
+        // Redirige al usuario a la siguiente página en el flujo (donde se pedirán los datos fiscales)
+        // Opcional: Puedes añadir un setTimeout si quieres que el mensaje de éxito se vea un momento
+        setTimeout(() => {
+            window.location.href = '/datos_fiscales.html'; 
+        }, 1500); // Redirige después de 1.5 segundos para que el usuario vea el mensaje
 
     } catch (error) {
-        console.error("Error completo al procesar la validación:", error);
-        let errorMessage = 'Ocurrió un error desconocido.';
-
-        if (error.code) {
-            errorMessage = `Error: ${error.code} - ${error.message}`;
-            if (error.code === 'already-exists') {
-                errorMessage = 'Error: Este ID de validación ya existe. Por favor, utiliza otro.';
-            } else if (error.code === 'email-already-in-use') {
-                errorMessage = 'Error: Este email ya está registrado. Por favor, intente con otro o inicie sesión.';
-            } else if (error.code === 'invalid-email') {
-                errorMessage = 'Error: El formato del email es inválido.';
-            } else if (error.code === 'weak-password') {
-                errorMessage = 'Error: La contraseña es demasiado débil (mínimo 6 caracteres).'; // Este error viene de Firebase Auth
-            } else if (error.code === 'invalid-argument') {
-                errorMessage = `Error de argumento: ${error.message}`;
-            } else if (error.code === 'permission-denied') {
-                errorMessage = `Error de permisos: ${error.message}`;
-            }
-        } else {
-            errorMessage = `Error inesperado: ${error.toString()}`;
+        console.error("DEBUG: Error DETALLADO al guardar perfil:", error);
+        let errorMessage = 'Error al guardar perfil.';
+        // Mejorar la lectura de errores específicos de Auth y los errores personalizados de userService
+        switch (error.code) {
+            case 'auth/credential-already-in-use':
+            case 'auth/email-already-in-use':
+                errorMessage = 'El email ya está en uso por otra cuenta. Intente iniciar sesión con ese email o usar otro.';
+                break;
+            case 'auth/requires-recent-login':
+                errorMessage = 'Su sesión ha caducado. Por favor, inicie sesión nuevamente para actualizar su información.';
+                break;
+            case 'auth/weak-password':
+                errorMessage = 'La contraseña es demasiado débil.';
+                break;
+            case 'auth/wrong-password': // Error de reautenticación si la contraseña no coincide
+                errorMessage = 'Contraseña incorrecta. Verifique sus credenciales.';
+                break;
+            case 'auth/invalid-email':
+                errorMessage = 'El formato del email no es válido.';
+                break;
+            default:
+                if (error instanceof Error && error.message) {
+                    errorMessage = error.message;
+                } else {
+                    errorMessage = `Error inesperado: ${error.code || 'Código de error desconocido'}.`;
+                }
+                break;
         }
-        displayResult('Error en Creación de Propietario:\n' + errorMessage, true);
+        displayMessage('error', 'Error al guardar perfil: ' + errorMessage, 0);
     } finally {
-        createButton.disabled = false;
-        createButton.textContent = 'Crear Nueva Validación';
+        updateSaveButtonState(); // Re-habilita el botón si no se redirigió y restaura el texto
+    }
+}
+
+
+// *********************************************************************************
+// * 5. LISTENERS DE EVENTOS                                                       *
+// *********************************************************************************
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Escuchar cambios en los inputs para habilitar/deshabilitar el botón de guardar
+    if (emailUsuarioInput) emailUsuarioInput.addEventListener('input', updateSaveButtonState);
+    if (emailUsuarioConfirmacionInput) emailUsuarioConfirmacionInput.addEventListener('input', updateSaveButtonState);
+    if (passwordUsuarioInput) passwordUsuarioInput.addEventListener('input', updateSaveButtonState);
+    if (passwordUsuarioConfirmacionInput) passwordUsuarioConfirmacionInput.addEventListener('input', updateSaveButtonState);
+
+    if (razonSocialPropietarioInput) razonSocialPropietarioInput.addEventListener('input', updateSaveButtonState);
+    if (direccionPropietarioInput) direccionPropietarioInput.addEventListener('input', updateSaveButtonState);
+    if (telefonoContactoPropietarioInput) telefonoContactoPropietarioInput.addEventListener('input', updateSaveButtonState);
+    if (paginaWebPropietarioInput) paginaWebPropietarioInput.addEventListener('input', updateSaveButtonState);
+    if (aliasBancarioPropietarioInput) aliasBancarioPropietarioInput.addEventListener('input', updateSaveButtonState);
+    if (habilitacionMunicipalPropietarioInput) habilitacionMunicipalPropietarioInput.addEventListener('input', updateSaveButtonState);
+
+    // Listener para el formulario
+    if (profileForm) profileForm.addEventListener('submit', saveProfile);
+
+    // Listener para el botón de cerrar sesión
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                displayMessage('info', 'Sesión cerrada. Redirigiendo...', 1500);
+                setTimeout(() => {
+                    window.location.href = '/ingresoAValidacion.html';
+                }, 1500);
+            } catch (error) {
+                console.error("Error al cerrar sesión:", error);
+                displayMessage('error', 'Error al cerrar sesión: ' + error.message, 0);
+            }
+        });
+    }
+});
+
+
+// *********************************************************************************
+// * 6. INICIALIZACIÓN DE AUTENTICACIÓN                                            *
+// *********************************************************************************
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        console.log("Usuario autenticado en propietario_test:", user.uid);
+        loadUserProfile(user);
+    } else {
+        displayMessage('error', 'No autenticado. Redirigiendo a la página de inicio.', 0);
+        setTimeout(() => {
+            window.location.href = '/ingresoAValidacion.html';
+        }, 2000);
     }
 });

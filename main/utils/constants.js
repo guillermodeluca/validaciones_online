@@ -1,14 +1,13 @@
 // main/utils/constants.js
 
-const EQUIFAX_AUTH_URL = "https://api.qa.latam.equifax.com/v2/oauth/token";
-// [PRODUCCIÓN: ¡ATENCIÓN!] Asegúrate de que esta URL sea la correcta para tu entorno (sandbox/uat/prod)
-const EQUIFAX_API_BASE_URL = "https://api.qa.latam.equifax.com/ifctribe-idv"; 
-// El valor que identificamos para el parámetro 'product'
-const EQUIFAX_PRODUCT_IDENTIFIER = "IDCLFULL"; 
+// URL del token endpoint para LIVE
+const EQUIFAX_AUTH_URL = 'https://api.latam.equifax.com/v2/oauth/token'; 
 
-// [PRODUCCIÓN: ¡ATENCIÓN!] Si tienes IDs de cuestionario predefinidos, definelos aquí.
-// Esto es un placeholder, debes obtener el ID real de Equifax para tu configuración de cuestionario.
-const DEFAULT_PROPIETARIO_QUESTIONNAIRE_ID = "tu_id_de_cuestionario_propietario";
+// URL base para los endpoints de API de datos para LIVE
+const EQUIFAX_API_BASE_URL = 'https://api.latam.equifax.com/ifctribe-idv'; 
+
+const EQUIFAX_PRODUCT_IDENTIFIER = "IDCLFULL"; 
+const DEFAULT_PROPIETARIO_QUESTIONNAIRE_ID = "ESw2zR0BqKfDQbPT7gV1";
 
 module.exports = {
   EQUIFAX_AUTH_URL,

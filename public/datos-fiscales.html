@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuración de Datos Fiscales</title>
+    <link rel="stylesheet" href="./styles.css"> 
+</head>
+<body>
+    <div class="container">
+        <h1>Configuración de Datos Fiscales</h1>
+        <div id="loadingStatus" class="status-message">Cargando datos...</div>
+        <div id="messageDisplay" class="status-message hidden"></div>
+
+        <form id="fiscalDataForm" class="hidden">
+            <h2 class="section-title">Tipo de Facturación</h2>
+            <div class="form-group">
+                <button type="button" id="btnConsumidorFinal" class="toggle-button">Soy Consumidor Final</button>
+                <button type="button" id="btnFacturaA" class="toggle-button">Necesito Factura A</button>
+            </div>
+
+            <h2 class="section-title" id="sectionTitleDetails">Seleccione un tipo de facturación para continuar</h2>
+
+            <!-- Campos comunes a ambos tipos de facturación (y base para Consumidor Final) -->
+            <div id="commonFiscalFields" class="hidden">
+                <div class="form-group">
+                    <label for="cf_nombre">Nombre o Razón Social:</label>
+                    <input type="text" id="cf_nombre" placeholder="Tu Nombre Completo o Razón Social">
+                </div>
+                <div class="form-group">
+                    <label for="cf_dni">DNI:</label>
+                    <input type="text" id="cf_dni" placeholder="Número de Documento">
+                </div>
+                <div class="form-group">
+                    <label for="cf_email">Email para Factura:</label>
+                    <input type="email" id="cf_email" placeholder="email@ejemplo.com">
+                </div>
+            </div>
+
+            <!-- Campos ADICIONALES para Factura A (inicialmente ocultos) -->
+            <div id="facturaAFields" class="hidden">
+                 <div class="form-group">
+                    <label for="fa_posicionIva">Posición ante IVA:</label>
+                    <select id="fa_posicionIva">
+                        <option value="">Selecciona tu posición</option>
+                        <option value="responsable_inscripto">Responsable Inscripto</option>
+                        <option value="monotributista">Monotributista</option>
+                        <option value="exento">Exento</option>
+                        <option value="consumidor_final_fa">Consumidor Final (para Factura A)</option>
+                        <option value="no_responsable">No Responsable</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="fa_cuit">CUIT:</label>
+                    <input type="text" id="fa_cuit" placeholder="XX-XXXXXXXX-X">
+                </div>
+            </div>
+            
+            <button type="submit" id="saveFiscalDataBtn" disabled>Guardar Datos Fiscales</button>
+            <button type="button" id="logoutBtn" style="background-color: #dc3545;">Cerrar Sesión</button>
+        </form>
+    </div>
+
+    <!-- Carga los scripts de Firebase -->
+    <script type="module" src="./firebaseConfig.js"></script>
+    <script type="module" src="./firebaseClient.js"></script>
+    <!-- Carga el script ESPECÍFICO de esta página -->
+    <script type="module" src="./datos_fiscales.js"></script>
+</body>
+</html>

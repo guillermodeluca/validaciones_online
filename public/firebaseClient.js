@@ -1,63 +1,77 @@
 // public/firebaseClient.js
 
-// --- Importa los módulos de Firebase que vas a usar desde CDN ---
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
-import { getAnalytics } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-analytics.js";
-import { getAuth, signInWithCustomToken, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-// Asegúrate de importar 'connectFirestoreEmulator' aquí
-import { getFirestore, doc, getDoc, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js";
-import { getFunctions, connectFunctionsEmulator, httpsCallable } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-functions.js";
+// *********************************************************************************
+// * 1. IMPORTACIONES (Firebase)                                                   *
+// *********************************************************************************
 
-// --- CAMBIO CLAVE AQUÍ PARA APP CHECK ---
-import { initializeAppCheck, ReCaptchaV3Provider } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check.js';
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-app.js";
+import { 
+    getAuth, 
+    signInWithCustomToken, 
+    connectAuthEmulator, 
+    onAuthStateChanged, 
+    signInAnonymously,
+    signOut 
+} from "https://www.gstatic.com/firebasejs/10.10.0/firebase-auth.js";
+import { 
+    getFirestore, 
+    doc, 
+    getDoc, 
+    connectFirestoreEmulator, 
+    collection,
+    updateDoc,      
+    setDoc,         
+    serverTimestamp as FieldValue      
+} from "https://www.gstatic.com/firebasejs/10.10.0/firebase-firestore.js";
+// ...existing code...
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from "https://www.gstatic.com/firebasejs/10.10.0/firebase-functions.js";
+// ...existing code...// ...existing code...
+// Importa tu configuración de Firebase
+import { firebaseConfig } from './firebaseConfig.js'; 
 
-
-// Importa tu configuración de Firebase desde el archivo separado
-import { firebaseConfig } from './firebaseConfig.js';
-
-
-// --- 1. Inicializa la aplicación Firebase ---
+// Inicializa Firebase
 const app = initializeApp(firebaseConfig);
-
-
-// --- 2. Obtén las instancias de los servicios que vas a usar ---
 const auth = getAuth(app);
 const db = getFirestore(app);
-const analytics = getAnalytics(app);
-const functions = getFunctions(app, 'southamerica-east1');
+const functions = getFunctions(app, "southamerica-east1");
 
 
-// --- MUY IMPORTANTE: Conecta los SDKs a los emuladores ---
-if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-  connectAuthEmulator(auth, "http://127.0.0.1:9099");
-  console.log("🔥 Conectado al Emulador de Autenticación de Firebase.");
+// --- Diagnóstico de Entorno y Configuración de Emuladores ---
+const isLocalhost = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const useCloudServicesFromLocalhost = new URLSearchParams(window.location.search).get('useCloudServices') === 'true';
 
-  connectFunctionsEmulator(functions, "127.0.0.1", 5001);
-  console.log("⚡️ Conectado al Emulador de Cloud Functions de Firebase.");
+console.log(`DIAGNOSTICO: isLocalhost=${isLocalhost}, useCloudServicesFromLocalhost=${useCloudServicesFromLocalhost}`);
 
-  // ¡¡¡ LÍNEA AÑADIDA/VERIFICADA PARA CONECTAR FIRESTORE AL EMULADOR !!!
-  connectFirestoreEmulator(db, "127.0.0.1", 8080); // El puerto 8080 es el predeterminado para el emulador de Firestore
-  console.log("☁️ Conectado al Emulador de Cloud Firestore de Firebase.");
+if (isLocalhost && !useCloudServicesFromLocalhost) {
+  console.log("DECISION DE CONEXION: Conectando a los EMULADORES.");
+  try {
+    // autenticación emulator (match: FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099)
+    connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    console.log("🔥 Conectado al Emulador de Autenticación de Firebase (9099).");
+  } catch (e) {
+    console.warn("firebaseClient: failed to connect auth emulator:", e.message);
+  }
 
-  self.FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-  console.warn("🛡️ App Check Debug Token enabled. Remember to disable this in production!");
+  try {
+    // functions emulator (ahora con región southamerica-east1)
+    connectFunctionsEmulator(functions, "127.0.0.1", 5001);
+    console.log("⚡️ Conectado al Emulador de Cloud Functions de Firebase (5001) en southamerica-east1.");
+  } catch (e) {
+    console.warn("firebaseClient: failed to connect functions emulator:", e.message);
+  }
+
+  try {
+    // firestore emulator (match: FIRESTORE_EMULATOR_HOST=127.0.0.1:8080)
+    connectFirestoreEmulator(db, "127.0.0.1", 8080);
+    console.log("☁️ Conectado al Emulador de Cloud Firestore de Firebase (8080).");
+  } catch (e) {
+    console.warn("firebaseClient: failed to connect firestore emulator:", e.message);
+  }
+} else {
+  console.log("DECISION DE CONEXION: Conectando a servicios de Firebase en la Nube.");
 }
 
-
-// --- 3. Inicializa Firebase App Check (¡CRÍTICO para seguridad en producción!) ---
-try {
-    const appCheck = initializeAppCheck(app, {
-        // --- CLAVE RECAPTCHA ACTUALIZADA AQUÍ ---
-        provider: new ReCaptchaV3Provider('6Lc9jbQrAAAAAJfwI8xkNn37rhK6yIAp0pYqqGYb'), 
-        isTokenAutoRefreshEnabled: true
-    });
-    console.log("🛡️ Firebase App Check inicializado con reCAPTCHA v3.");
-} catch (error) {
-    console.error("❌ Error al inicializar Firebase App Check:", error);
-}
-
-
-// --- 4. Función para iniciar sesión con el token personalizado ---
+// --- Función para iniciar sesión con el token personalizado ---
 export async function iniciarSesionConTokenPersonalizado(customToken) {
   try {
     const userCredential = await signInWithCustomToken(auth, customToken);
@@ -69,8 +83,8 @@ export async function iniciarSesionConTokenPersonalizado(customToken) {
     console.log("Datos del usuario:", user);
 
     console.log("\nIntentando leer un documento de Firestore (colección 'users')...");
-    const userDocRef = doc(db, "users", user.uid);
-    const userDocSnap = await getDoc(userDocRef);
+    const userDocRef = doc(db, "users", user.uid); 
+    const userDocSnap = await getDoc(userDocRef); 
 
     if (userDocSnap.exists()) {
       console.log("Datos del documento de usuario en Firestore:", userDocSnap.data());
@@ -85,8 +99,69 @@ export async function iniciarSesionConTokenPersonalizado(customToken) {
     } else {
       alert('Error de autenticación: ' + error.message);
     }
+    throw error;
   }
 }
 
-// --- 5. Exporta las instancias de los servicios para que puedan ser usadas en otros archivos ---
-export { app, auth, db, analytics, functions, httpsCallable };
+// --- Asegurar autenticación anónima para callables ---
+async function ensureAuth() {
+  if (auth.currentUser) {
+    console.log("firebaseClient: usuario ya autenticado:", auth.currentUser.uid);
+    return auth.currentUser;
+  }
+  try {
+    const userCredential = await signInAnonymously(auth);
+    console.info("firebaseClient: signed in anonymously", userCredential.user.uid);
+    return userCredential.user;
+  } catch (err) {
+    console.warn("firebaseClient.ensureAuth: signInAnonymously failed:", err.message);
+    throw err;
+  }
+}
+
+// --- Funciones para interactuar con Cloud Functions ---
+export async function initiatePaymentClient(payload) {
+  await ensureAuth();
+  const fn = httpsCallable(functions, "initiatePayment");
+  try {
+    // Pasar payload directamente (no { data: payload })
+    const res = await fn(payload);
+    return res.data;
+  } catch (error) {
+    console.error("Error en initiatePaymentClient:", error.message);
+    throw error;
+  }
+}
+
+export async function processPaymentConfirmationClient(payload) {
+  await ensureAuth();
+  const fn = httpsCallable(functions, "processPaymentConfirmation");
+  try {
+    // Pasar payload directamente (no { data: payload })
+    const res = await fn(payload);
+    return res.data;
+  } catch (error) {
+    console.error("Error en processPaymentConfirmationClient:", error.message);
+    throw error;
+  }
+}
+
+// --- Exportaciones ---
+export {
+  app,
+  auth,
+  db,
+  functions,
+  httpsCallable,
+  collection,
+  doc,
+  getDoc,
+  updateDoc,
+  setDoc,
+  FieldValue,
+  onAuthStateChanged,
+  signInAnonymously,
+  signInWithCustomToken,
+  signOut,
+
+};

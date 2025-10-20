@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Validación</title>
+    <link rel="stylesheet" href="./styles.css"> 
+</head>
+<body>
+    <div class="container">
+        <h1>Iniciar Proceso de Validación</h1>
+
+        <!-- Mensaje de estado de autenticación/proceso -->
+        <div id="auth-status-dev" style="margin-bottom: 20px;">
+            <span id="user-status-msg">Cargando estado del usuario...</span>
+        </div>
+
+        <!-- Contenedor principal que se ocultará/mostrará según el estado del proceso -->
+        <div id="main-validation-content">
+
+            <!-- Sección inicial: Selección de rol y botón de recuperación -->
+            <div id="initial-selection-section" class="hidden">
+                <p style="text-align: center; margin-bottom: 25px;">Selecciona tu tipo de validación para iniciar el proceso:</p>
+                <div id="validation-buttons">
+                    <button id="validate-propietario-btn" disabled>Validar como Propietario</button> <!-- Añadir disabled -->
+                    <button id="validate-inquilino-btn" disabled>Validar como Inquilino</button>   <!-- Añadir disabled -->
+                </div>
+                <div style="text-align: center; margin-top: 30px;">
+                    <p>¿Tienes un código o necesitas retomar un proceso?</p>
+                    <button id="recovery-token-btn">Usar Código / Retomar Proceso</button>
+                </div>
+            </div>
+
+            <!-- Sección del cuestionario (se mostrará si el proceso lo requiere) -->
+            <div id="questionnaire-section" class="hidden">
+                <h2>Cuestionario de Validación</h2>
+                <p id="questionnaire-info"></p>
+                <div id="questions-container">
+                    <!-- Las preguntas se cargarán aquí dinámicamente -->
+                </div>
+                <button id="submit-answers-btn">Enviar Respuestas</button>
+            </div>
+
+            <!-- Sección de mensaje general -->
+            <div id="message-display" class="message hidden"></div>
+        </div>
+    </div>
+
+    <!-- Carga tu archivo firebaseClient.js como un MÓDULO. -->
+    <script type="module" src="./firebaseClient.js"></script>
+
+    <!-- ¡ACTUALIZADO! Carga tu lógica frontend -->
+    <script type="module" src="./ingresoAValidacion.js"></script>
+
+</body>
+</html>

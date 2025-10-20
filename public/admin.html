@@ -1,117 +1,254 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Administrativo</title>
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <style>
-        /* Estilos adicionales si es necesario, por ejemplo, para ocultar/mostrar elementos */
-        .hidden { display: none; }
-        .validation-card {
-            border: 1px solid #e2e8f0; /* gray-300 */
-            border-radius: 0.5rem; /* rounded-lg */
-            padding: 1rem; /* p-4 */
-            margin-bottom: 0.75rem; /* space-y-3 si hay varios, o mb-3 */
-        }
-        .validation-card.active {
-            border-color: #38a169; /* green-600 */
-            background-color: #ecfdf5; /* green-50 */
-        }
-        .validation-card.expired {
-            border-color: #ef4444; /* red-500 */
-            background-color: #fef2f2; /* red-50 */
-        }
-        .validation-card.pending {
-            border-color: #f6ad55; /* orange-400 */
-            background-color: #fffaf0; /* orange-50 */
-        }
-    </style>
+
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Consulta de Validación</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Tu CSS existente */
+    :root {
+      --primary-color: #007bff; /* Azul vibrante */
+      --primary-dark: #0056b3; /* Azul oscuro para hover */
+      --secondary-color: #6c757d; /* Gris para texto secundario */
+      --background-light: #f8f9fa; /* Fondo claro */
+      --card-background: #ffffff; /* Fondo de tarjetas */
+      --border-color: #e0e0e0; /* Color de borde suave */
+      --text-color: #343a40; /* Texto principal oscuro */
+      --heading-color: #212529; /* Títulos aún más oscuros */
+      --success-color: #28a745; /* Verde para éxito */
+      --danger-color: #dc3545; /* Rojo para inactivo/error */
+      --warning-color: #ffc107; /* Amarillo para advertencias */
+    }
+
+    body {
+      font-family: 'Inter', sans-serif; /* Aplica la fuente moderna */
+      margin: 0;
+      padding: 20px;
+      background-color: var(--background-light);
+      color: var(--text-color);
+      line-height: 1.6;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start; /* Alinea al inicio verticalmente */
+      min-height: 100vh; /* Ocupa al menos la altura de la ventana */
+    }
+    .container {
+      width: 100%;
+      max-width: 850px; /* Un poco más ancho para mejor presentación de datos */
+      padding: 40px;
+      background-color: var(--card-background);
+      border-radius: 12px; /* Bordes más redondeados */
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08); /* Sombra más suave y moderna */
+    }
+    h1 {
+      text-align: center;
+      color: var(--heading-color);
+      margin-bottom: 35px;
+      font-size: 2.2em;
+      font-weight: 600; /* Más robusto */
+    }
+    .input-group {
+      display: flex;
+      gap: 15px; /* Más espacio entre elementos */
+      margin-bottom: 30px;
+      align-items: center;
+    }
+    .input-group input[type="text"] {
+      flex-grow: 1;
+      padding: 14px; /* Más padding interno */
+      border: 1px solid var(--border-color);
+      border-radius: 8px; /* Bordes más suaves */
+      font-size: 1em;
+      outline: none; /* Quita el contorno por defecto al enfocar */
+      transition: border-color 0.2s, box-shadow 0.2s; /* Transición suave al enfocar */
+    }
+    .input-group input[type="text"]:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25); /* Resalte en el focus con sombra azul */
+    }
+    .input-group button {
+      padding: 14px 30px;
+      background-color: var(--primary-color);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1.05em;
+      font-weight: 500;
+      transition: background-color 0.2s, transform 0.1s; /* Efectos al pasar el mouse */
+      box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2); /* Sombra para el botón */
+    }
+    .input-group button:hover {
+      background-color: var(--primary-dark);
+      transform: translateY(-1px); /* Pequeño efecto de elevación */
+    }
+    .input-group button:active {
+      transform: translateY(0); /* Efecto de "presionado" */
+      box-shadow: none;
+    }
+
+    /* Estilos para el Loader */
+    .loadingScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100vh;
+      background-color: rgba(255, 255, 255, 0.75); /* Fondo semitransparente más opaco */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      display: none; /* Oculto por defecto */
+    }
+    .loader {
+      border: 6px solid #f3f3f3; /* Borde más grueso */
+      border-top: 6px solid var(--primary-color); /* Color primario para la parte giratoria */
+      border-radius: 50%;
+      width: 60px; /* Tamaño más grande */
+      height: 60px;
+      animation: spin 1s linear infinite;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--primary-color);
+      font-size: 1em;
+      font-weight: 500;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Estilos para resultados y errores */
+    .result-container {
+      margin-top: 35px;
+    }
+    .result-card {
+      background-color: var(--card-background);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 30px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+      overflow: hidden; /* Asegura que todo esté dentro de la tarjeta */
+    }
+    .result-card h2, .result-card h3 {
+      color: var(--heading-color);
+      margin-top: 0;
+      margin-bottom: 18px;
+      font-weight: 600;
+      font-size: 1.5em;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 10px;
+    }
+    .result-card h3 {
+      font-size: 1.2em;
+      margin-top: 25px;
+    }
+    .result-card p {
+      margin-bottom: 10px;
+      font-size: 0.98em;
+    }
+    .result-card p strong {
+      color: var(--secondary-color);
+      display: inline-block;
+      min-width: 180px; /* Alinea las etiquetas */
+      font-weight: 500;
+    }
+    .header-section {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+    }
+    .status-badge {
+        padding: 9px 18px;
+        border-radius: 25px; /* Más redondeado */
+        font-weight: 600;
+        color: white;
+        text-transform: uppercase;
+        font-size: 0.85em;
+        letter-spacing: 0.5px; /* Espaciado entre letras */
+    }
+    .status-active {
+        background-color: var(--success-color);
+    }
+    .status-inactive {
+        background-color: var(--danger-color);
+    }
+    .status-inactive-details {
+        background-color: #fff3cd; /* Color de advertencia más claro */
+        border-left: 5px solid var(--warning-color); /* Borde con el color de advertencia */
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 30px;
+        color: #6a5300; /* Texto oscuro para el warning */
+    }
+    .info-section {
+        margin-bottom: 25px;
+        padding: 20px;
+        background-color: var(--background-light);
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+    .info-section .detail-item { /* Estilo para cada par etiqueta-valor */
+        display: flex;
+        align-items: baseline;
+        margin-bottom: 8px;
+    }
+    .info-section .detail-item strong {
+        flex-shrink: 0; /* Evita que la etiqueta se encoja */
+        margin-right: 15px;
+    }
+    .capitalize::first-letter {
+        text-transform: uppercase;
+    }
+    .error-message-display {
+      background-color: #ffebeb; /* Fondo de error suave */
+      border: 1px solid #ff9999; /* Borde de error */
+      color: #cc0000; /* Texto de error */
+      padding: 18px;
+      border-radius: 8px;
+      margin-top: 25px;
+      font-weight: 600;
+      text-align: center;
+    }
+  </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
-    <div class="bg-white p-8 rounded-lg shadow-lg max-w-2xl w-full">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-8">Panel Administrativo</h1>
+<body>
+  <div class="container">
+    <h1>Consulta de Validación de Propietarios</h1>
 
-        <!-- SECCIÓN DE AUTENTICACIÓN -->
-        <div id="auth-section" class="mb-6 p-6 bg-blue-50 rounded-lg shadow-inner">
-            <h2 class="text-xl font-semibold text-gray-700 mb-4">Acceso de Administrador</h2>
-            <p id="auth-status" class="font-semibold text-gray-600 mb-4">Estado: No autenticado</p>
-            <div class="space-y-4">
-                <input type="email" id="emailInput" placeholder="Correo electrónico" value="admin@example.com" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <input type="password" id="passwordInput" placeholder="Contraseña" value="admin-password" class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div class="flex space-x-4 mt-4">
-                <button id="loginButton" class="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition duration-200">Iniciar Sesión</button>
-            </div>
-            <button id="logoutButton" class="w-full bg-red-600 text-white p-3 rounded-lg hover:bg-red-700 transition duration-200 mt-4 hidden">Cerrar Sesión</button>
-            <p class="text-sm text-gray-500 mt-2 text-center">Solo para administradores registrados en Firebase Auth y con rol 'admin' en Firestore.</p>
-        </div>
-
-        <!-- SECCIÓN DE ACCIONES ADMINISTRATIVAS (VISIBLES SOLO PARA ADMINS) -->
-        <div id="admin-dashboard" class="hidden space-y-8">
-
-            <!-- SECCIÓN DE BÚSQUEDA DE USUARIO Y HISTORIAL DE VALIDACIONES -->
-            <div class="p-6 bg-purple-50 rounded-lg shadow-inner">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">Buscar Historial de Validaciones</h2>
-                <input type="text" id="searchDniInput" placeholder="DNI del usuario" class="w-full p-3 border border-gray-300 rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <input type="text" id="searchNameInput" placeholder="Nombre y Apellido del usuario" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500">
-                <button id="searchHistoryButton" class="w-full bg-purple-600 text-white p-3 rounded-lg hover:bg-purple-700 transition duration-200">Buscar Historial</button>
-
-                <p id="searchStatusMessage" class="text-sm mt-4 text-center hidden"></p>
-
-                <div id="historyResultsSection" class="mt-6 p-4 bg-gray-100 rounded-lg hidden">
-                    <h3 class="font-bold text-gray-800 mb-4">Resultados de la Búsqueda:</h3>
-                    <div id="validationHistoryList" class="space-y-4">
-                        <!-- Aquí se inyectarán las validaciones -->
-                    </div>
-                </div>
-            </div>
-                        <!-- SECCIÓN DE MÉTRICAS GENERALES -->
-            <div class="p-6 bg-blue-100 rounded-lg shadow-inner">
-                <h2 class="text-xl font-semibold text-blue-800 mb-4">Métricas Generales del Sistema</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-center">
-                    <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
-                        <p class="text-gray-600">Total Usuarios Registrados</p>
-                        <p id="totalUsersCount" class="text-3xl font-bold text-blue-700">0</p>
-                    </div>
-                    <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
-                        <p class="text-gray-600">Propietarios</p>
-                        <p id="totalPropietariosCount" class="text-2xl font-bold text-blue-600">0</p>
-                    </div>
-                    <div class="bg-blue-50 p-4 rounded-lg shadow-sm">
-                        <p class="text-gray-600">Inquilinos</p>
-                        <p id="totalInquilinosCount" class="text-2xl font-bold text-blue-600">0</p>
-                    </div>
-                    <div class="bg-blue-50 p-4 rounded-lg shadow-sm col-span-full">
-                        <p class="text-gray-600">Total Validaciones Creadas</p>
-                        <p id="totalValidacionesCount" class="text-3xl font-bold text-blue-700">0</p>
-                    </div>
-                    <!-- Aquí se pueden añadir contadores de admins, colaboradores, etc. si se implementan -->
-                </div>
-            </div>
-
-
-            <!-- SECCIÓN DE ACCIONES DE VALIDACIÓN (EXISTENTES, COMO EJEMPLO DE ACCIONES ADMIN) -->
-            <div class="p-6 bg-green-50 rounded-lg shadow-inner">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">Acciones de Validación Manuales</h2>
-                <input type="text" id="adminSearchId" placeholder="ID de Validación (Ej: VAL2023016)" value="VAL2023016" class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-green-500">
-                <div class="flex space-x-4">
-                    <button id="certifyButton" class="w-full bg-green-600 text-white p-3 rounded-lg hover:bg-green-700 transition duration-200">Simular Certificación</button>
-                    <button id="payButton" class="w-full bg-yellow-600 text-white p-3 rounded-lg hover:bg-yellow-700 transition duration-200">Simular Pago Confirmado</button>
-                </div>
-                <p id="actionResultMessage" class="text-sm mt-4 text-center hidden"></p>
-            </div>
-            
-            <!-- Aquí puedes añadir más secciones para recaudación, gestión de colaboradores, etc. -->
-
-        </div>
+    <div class="input-group">
+      <!-- MODIFICADO: Placeholder y valor para reflejar búsqueda de propietario -->
+      <input type="text" id="searchQuery" placeholder="Ingrese ID de validación de Propietario (ej. NombreEmpresaXYZ)" value="ID_VALIDACION_TEST_001">
+      <button id="consultButton">Consultar</button>
     </div>
 
-    <!-- Carga la configuración de Firebase -->
-    <script type="module" src="./firebaseConfig.js"></script>
-    <!-- Carga el cliente de Firebase con Authentication, Firestore, Functions y App Check -->
-    <script type="module" src="./firebaseClient.js"></script>
-    <!-- Carga el script ESPECÍFICO de esta página -->
-    <script type="module" src="./admin.js"></script>
+    <div id="result" class="result-container">
+      <!-- Aquí se mostrarán los resultados o errores -->
+    </div>
+
+    <div id="loadingScreen" class="loadingScreen">
+      <div class="loader">Cargando...</div>
+    </div>
+  </div>
+
+  <!--
+    *** RECAPTCHA V3 SCRIPT ***
+    Asegúrate de que este script esté en tu <head> ANTES de cualquier inicialización de Firebase App Check
+    que dependa de `grecaptcha`. Reemplaza 'TU_CLAVE_PUBLICA_RECAPTCHA_SITE_KEY'
+    con la CLAVE DE SITIO PÚBLICA (Site Key) de tu reCAPTCHA v3.
+    -->
+    <script src="https://www.google.com/recaptcha/api.js?render=TU_CLAVE_PUBLICA_RECAPTCHA_SITE_KEY"></script>
+
+  <!-- Carga la configuración de Firebase -->
+  <script type="module" src="./firebaseConfig.js"></script>
+  <!-- Carga el cliente de Firebase con Authentication, Firestore, Functions y App Check -->
+  <script type="module" src="./firebaseClient.js"></script>
+  <!-- Carga el script ESPECÍFICO de esta página -->
+  <script type="module" src="./consulta.js"></script>
 </body>
 </html>

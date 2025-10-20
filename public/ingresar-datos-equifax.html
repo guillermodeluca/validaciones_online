@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Continuar Validación - Equifax</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Continuar Validación con Equifax</h1>
+        <p>Tu pago ha sido confirmado. Ahora, completa tus datos para la validación de identidad.</p>
+
+        <!-- Muestra mensajes de estado y errores al usuario -->
+        <div id="user-status-equifax" class="message-info">Cargando estado del proceso...</div>
+        <div id="messageDisplay" class="status-message hidden"></div> <!-- Necesario para showMessage -->
+      
+        <!-- SECCIÓN PRINCIPAL: Ingresar datos para iniciar Equifax -->
+        <div id="main-validation-content" class="card"> <!-- <-- ID CORREGIDO: kebab-case -->
+            <h2>Datos para la Validación Equifax</h2>
+            <p>Ingresa la información requerida:</p>
+
+            <div class="form-group">
+                <label for="input-document-number">Número de Documento (DNI/CUIL):</label>
+                <input type="text" id="input-document-number" placeholder="Ej: 20007481"> <!-- <-- ID CORREGIDO: kebab-case -->
+            </div>
+            
+            <div class="form-group">
+                <label for="input-gender">Género (M/F/X):</label>
+                <input type="text" id="input-gender" placeholder="Ej: M"> <!-- <-- ID CORREGIDO: kebab-case -->
+            </div>
+
+            <div class="form-group">
+                <label for="input-full-name">Nombre Completo:</label>
+                <input type="text" id="input-full-name" placeholder="Ej: Juan Perez"> <!-- <-- ID CORREGIDO: kebab-case -->
+            </div>
+
+            <button id="btn-run-simple-validation" class="btn-primary">Ejecutar Validación Simple</button>
+            <button id="btn-run-full-validation" class="btn-secondary">Ejecutar Validación Completa</button>
+
+        </div>
+
+        <!-- Sección para mostrar los resultados de las llamadas a Equifax -->
+        <div id="equifax-results" class="card hidden"> <!-- <-- ID CORREGIDO: kebab-case -->
+            <h2>Resultados de Equifax</h2>
+            <pre id="output-equifax"></pre> <!-- <-- ID CORREGIDO: kebab-case -->
+            <button id="btn-retry-equifax" class="btn-secondary hidden">Reintentar Validación</button> <!-- <-- ID CORREGIDO: kebab-case -->
+        </div>
+
+        <!-- Sección para mostrar el cuestionario de Equifax si se requiere -->
+        <div id="equifax-questionnaire" class="card hidden"> <!-- <-- ID CORREGIDO: kebab-case -->
+            <h2>Cuestionario de Equifax</h2>
+            <p>Por favor, responde las siguientes preguntas:</p>
+            <div id="questionnaire-questions"> <!-- <-- ID CORREGIDO: kebab-case -->
+                <!-- Las preguntas se cargarán aquí dinámicamente con JavaScript -->
+            </div>
+            <button id="btn-submit-answers" class="btn-primary hidden">Enviar Respuestas</button> <!-- <-- ID CORREGIDO: kebab-case -->
+        </div>
+        
+        <!-- Enlace para volver a la página de inicio o de ingreso a validación -->
+        <p><a href="/ingresoAValidacion.html">Volver a inicio</a></p>
+
+        <!-- ============================================================================ -->
+        <!-- INICIO: Botón para probar la función CORS. -->
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+            <h3>Herramientas de Depuración</h3>
+            <button id="test-cors-btn" class="btn-secondary">Probar CORS Función</button> <!-- <-- ID CORREGIDO: kebab-case -->
+            <p style="font-size: 0.8em; color: gray;">(Este botón es temporal para depurar el CORS. Ignorar su funcionalidad principal)</p>
+        </div>
+        <!-- FIN: Botón para probar la función CORS. -->
+        <!-- ============================================================================ -->
+
+    </div>
+
+    <!-- Carga los SDKs de Firebase. Asegúrate de que 'firebaseClient.js' inicialice Firebase correctamente. -->
+    <script type="module" src="/firebaseClient.js"></script>
+    <!-- Carga la lógica específica de esta página. -->
+    <script type="module" src="/ingresar-datos-equifax.js"></script>
+</body>
+</html>

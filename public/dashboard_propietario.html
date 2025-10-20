@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Propietario</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>¡Felicidades!</h1>
+        <p>Tu proceso de validación está completo y tus datos fiscales han sido enviados para procesar la factura.</p>
+        <p>Pronto recibirás un email de confirmación y tu factura.</p>
+        <div style="text-align: center; margin-top: 30px;">
+            <button id="logoutBtn" style="background-color: #dc3545;">Cerrar Sesión</button>
+            <!-- Puedes añadir más enlaces o funcionalidades aquí -->
+        </div>
+    </div>
+
+    <script type="module" src="./firebaseConfig.js"></script>
+    <script type="module" src="./firebaseClient.js"></script>
+    <script type="module">
+        // Un script simple para manejar el logout si lo necesitas en el dashboard
+        import { auth } from './firebaseClient.js';
+        import { signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
+
+        const logoutBtn = document.getElementById('logoutBtn');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async () => {
+                try {
+                    await signOut(auth);
+                    window.location.href = '/ingresoAValidacion.html';
+                } catch (error) {
+                    console.error("Error al cerrar sesión desde dashboard:", error);
+                    alert("Error al cerrar sesión.");
+                }
+            });
+        }
+    </script>
+</body>
+</html>

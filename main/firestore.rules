@@ -1,11 +1,83 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Esta regla permite leer y escribir a cualquiera.
-    // Es para propósitos de desarrollo y pruebas y caduca en 2025.
-    // ¡Asegúrate de implementar reglas más seguras para producción!
+
+    // === HELPER FUNCTIONS ===
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isDeveloper() {
+      // **IMPORTANT:** Use the UID of your developer account used for debugging.
+      // Ensure this UID is correct for your development user.
+      // If using multiple UIDs, separate them with '||'.
+      return request.auth.uid == 'DxHQRjM8pueeB17aO048CMLlcIWC'
+             || request.auth.uid == 'nTyLDaH1acQBmiMEmuXqMcfZgta2'; // <--- YOUR CURRENT TEST UID HERE
+    }
+
+    function isAdmin() {
+      return isAuthenticated()
+             && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+             && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // === COLLECTION-SPECIFIC RULES ===
+
+    match /users/{userId} {
+      // Allow read if: it's their own document and authenticated, or developer, or admin.
+      allow read: if isAuthenticated() && request.auth.uid == userId
+                  || isDeveloper()
+                  || isAdmin();
+      
+      // Allow write if:
+      // (It's their own document and authenticated, or developer, or admin)
+      // AND (lastUpdated is null or is a timestamp)
+      // AND (validationProcess.expirationDate is null or is a timestamp)
+      allow write: if (isAuthenticated() && request.auth.uid == userId
+                       || isDeveloper()
+                       || isAdmin())
+                   && (request.resource.data.lastUpdated == null || request.resource.data.lastUpdated is timestamp)
+                   && (request.resource.data.get('validationProcess.expirationDate') == null || request.resource.data.get('validationProcess.expirationDate') is timestamp);
+    }
+
+    match /fiscalDataRequests/{fiscalRequestId} {
+      // Allow create if: authenticated
+      // AND their UID matches the userId in the data
+      // AND requestDate is a timestamp
+      allow create: if isAuthenticated()
+                    && request.auth.uid == request.resource.data.userId
+                    && request.resource.data.requestDate is timestamp;
+      
+      // Allow read if: owner of the document and authenticated, or developer, or admin.
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId
+                  || isDeveloper()
+                  || isAdmin();
+      
+      // Allow update if:
+      // (Owner of the document and authenticated, or developer, or admin)
+      // AND (requestDate is null or is a timestamp)
+      allow update: if (isAuthenticated() && request.auth.uid == resource.data.userId
+                       || isDeveloper()
+                       || isAdmin())
+                    && (request.resource.data.requestDate == null || request.resource.data.requestDate is timestamp);
+      
+      allow delete: if isDeveloper() || isAdmin();
+    }
+
+    match /validaciones/{validationId} {
+      allow read: if isAuthenticated() && resource.data.ownerUid == request.auth.uid
+                  || isDeveloper()
+                  || isAdmin();
+      // Add your own write/update rules here if needed.
+    }
+
+    match /stats/dashboard_metrics {
+      allow read: if isAdmin() || isDeveloper();
+    }
+
+    // === CATCH-ALL / DEFAULT DENY ===
     match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 8, 23);
+      allow read, write: if isDeveloper();
     }
   }
 }

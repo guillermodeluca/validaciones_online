@@ -1,102 +1,101 @@
-<!--propietario_test.html -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crear Validación (Propietario)</title>
-    <!-- Tus estilos existentes (incluyendo el CSS in-line) -->
-    <style>
-        
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; }
-        .container { background-color: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="text"], input[type="email"], input[type="password"], select, input[type="number"] { width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; }
-        button { background-color: #4CAF50; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
-        button:hover { background-color: #45a049; }
-        .results { margin-top: 20px; padding: 15px; background-color: #e9e9e9; border-radius: 4px; white-space: pre-wrap; font-family: monospace; }
-        h1 { text-align: center; color: #333; }
-        .section-title { margin-top: 25px; margin-bottom: 10px; color: #555; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; }
-        .error-message { color: red; font-weight: bold; margin-bottom: 10px; } /* Nuevo estilo para mensajes de error */
-    </style>
+    <title>Perfil de Propietario</title>
+<link rel="stylesheet" href="./styles.css"> 
 </head>
 <body>
     <div class="container">
-        <h1>Crear Nueva Validación (Propietario)</h1>
+        <h1>Perfil de Propietario</h1>
+        <div id="loadingStatus" class="status-message">Cargando datos del perfil...</div>
 
-        <form id="validationForm">
-            <div id="propietarioForm" class="form-group">
-                <label for="searchIdPropietario">ID Único de Validación (Propietario):</label>
-                <input type="text" id="searchIdPropietario" placeholder="Ej: NombreEmpresaXYZ (debe ser único)" value="ID_VALIDACION_TEST_001" required>
-
-                <label for="razonSocialPropietario">Razón Social / Nombre de Establecimiento:</label>
-                <input type="text" id="razonSocialPropietario" value="Empresa Demo S.A.">
-
-                <label for="titularPropietario">Titular o Responsable:</label>
-                <input type="text" id="titularPropietario" value="Juan Pérez">
-
-                <label for="direccionPropietario">Dirección:</label>
-                <input type="text" id="direccionPropietario" value="Calle Falsa 123">
-
-                <label for="localidadPropietario">Localidad:</label>
-                <input type="text" id="localidadPropietario" value="Buenos Aires">
-
-                <label for="paisPropietario">País:</label>
-                <input type="text" id="paisPropietario" value="Argentina">
-
-                <label for="identificacionFiscalTipoPropietario">Tipo de Identificación Fiscal:</label>
-                <select id="identificacionFiscalTipoPropietario">
-                    <option value="CUIT">CUIT</option>
-                    <option value="CUIL">CUIL</option>
-                    <option value="DNI">DNI</option>
-                </select>
-
-                <label for="identificacionFiscalNumeroPropietario">Número de Identificación Fiscal:</label>
-                <input type="text" id="identificacionFiscalNumeroPropietario" value="20-98765432-1">
-
-                <label for="emailContactoPropietario">Email de Contacto (Será el usuario de acceso):</label>
-                <input type="email" id="emailContactoPropietario" value="propietario@example.com" required>
-
-                <!-- NUEVO CAMPO: Confirmación de Email -->
-                <label for="confirmEmailContactoPropietario">Confirmar Email de Contacto:</label>
-                <input type="email" id="confirmEmailContactoPropietario" value="propietario@example.com" required>
-
-                <label for="passwordPropietario">Contraseña (Mínimo 8 caracteres, al menos 3 de 4 tipos: mayúsculas, minúsculas, números, símbolos):</label>
-                <input type="password" id="passwordPropietario" value="password123" required minlength="8">
-
-                <label for="confirmPasswordPropietario">Confirmar Contraseña:</label>
-                <input type="password" id="confirmPasswordPropietario" value="password123" required minlength="8">
-
-                <label for="telefonoContactoPropietario">Teléfono de Contacto:</label>
-                <input type="text" id="telefonoContactoPropietario" value="11-5555-1234">
-
-                <label for="paginaWebPropietario">Página Web:</label>
-                <input type="text" id="paginaWebPropietario" value="www.demostore.com">
-
-                <label for="aliasBancarioPropietario">Alias Bancario:</label>
-                <input type="text" id="aliasBancarioPropietario" value="DEMO.ALIAS.PRO">
-
-                <label for="habilitacionMunicipalPropietario">Habilitación Municipal:</label>
-                <input type="text" id="habilitacionMunicipalPropietario" value="Habilitacion-XYZ-123">
+        <form id="profileForm" class="hidden">
+            <h2 class="section-title">Datos Validados (Equifax)</h2>
+            <div class="form-group">
+                <label for="fullNameUsuario">Nombre Completo:</label>
+                <input type="text" id="fullNameUsuario" disabled>
+            </div>
+            <div class="form-group">
+                <label for="documentNumberUsuario">Número de Documento:</label>
+                <input type="text" id="documentNumberUsuario" disabled>
+            </div>
+            <div class="form-group">
+                <label for="genderUsuario">Género:</label>
+                <input type="text" id="genderUsuario" disabled>
+            </div>
+            <div class="form-group">
+                <label for="birthdateUsuario">Fecha de Nacimiento:</label>
+                <input type="text" id="birthdateUsuario" disabled>
+            </div>
+            <div class="form-group">
+                <label for="validationStatusUsuario">Estado de Validación:</label>
+                <input type="text" id="validationStatusUsuario" disabled>
+            </div>
+            <div class="form-group">
+                <label for="validationExpiresAtUsuario">Vence el:</label>
+                <input type="text" id="validationExpiresAtUsuario" disabled>
             </div>
 
-            <button type="submit" id="createButton">Crear Nueva Validación</button>
+            <h2 class="section-title">Datos Adicionales</h2>
+
+            <!-- CAMPOS DE EMAIL -->
+            <div class="form-group">
+                <label for="emailUsuario">Email:</label>
+                <input type="email" id="emailUsuario" placeholder="tu.email@ejemplo.com">
+                <span id="emailMatchStatus" class="match-status"></span>
+            </div>
+            <div class="form-group">
+                <label for="emailUsuarioConfirmacion">Confirma Email:</label>
+                <input type="email" id="emailUsuarioConfirmacion" placeholder="confirma.tu.email@ejemplo.com">
+            </div>
+
+           <!-- CAMPOS DE CONTRASEÑA -->
+            <div class="form-group">
+                <label for="passwordUsuario">Contraseña:</label>
+                <input type="password" id="passwordUsuario" placeholder="Ingresa tu contraseña">
+                <small class="password-hint">
+                    Mínimo 8 caracteres. Debe incluir al menos 3 de los siguientes:
+                    Mayúscula, minúscula, número, símbolo.
+                </small>
+                <span id="passwordMatchStatus" class="match-status"></span>
+            </div>
+            <div class="form-group">
+                <label for="passwordUsuarioConfirmacion">Confirma Contraseña:</label>
+                <input type="password" id="passwordUsuarioConfirmacion" placeholder="Confirma tu contraseña">
+            </div>
+
+            <!-- CAMPOS DE DATOS DE PROPIETARIO (Revisado para no duplicar Razón Social) -->
+            <div class="form-group">
+                <label for="razonSocialPropietario">Razón Social / Nombre de Establecimiento:</label>
+                <input type="text" id="razonSocialPropietario" placeholder="Empresa Demo S.A.">
+            </div>
+            <div class="form-group">
+                <label for="direccionPropietario">Dirección del Establecimiento:</label>
+                <input type="text" id="direccionPropietario" placeholder="Calle Falsa 123">
+            </div>
+            <div class="form-group">
+                <label for="telefonoContactoPropietario">Teléfono de Contacto:</label>
+                <input type="text" id="telefonoContactoPropietario" placeholder="11-5555-1234">
+            </div>
+            <div class="form-group">
+                <label for="paginaWebPropietario">Página Web:</label>
+                <input type="text" id="paginaWebPropietario" placeholder="www.tuweb.com">
+            </div>
+            <div class="form-group">
+                <label for="aliasBancarioPropietario">Alias Bancario:</label>
+                <input type="text" id="aliasBancarioPropietario" placeholder="TU.ALIAS.BANCARIO">
+            </div>
+            <div class="form-group">
+                <label for="habilitacionMunicipalPropietario">Habilitación Municipal:</label>
+                <input type="text" id="habilitacionMunicipalPropietario" placeholder="Habilitacion-XYZ-123">
+            </div>
+
+            <button type="submit" id="saveProfileBtn">Guardar Perfil</button>
+            <button type="button" id="logoutBtn" style="background-color: #dc3545;">Cerrar Sesión</button>
         </form>
-
-        <h2 class="section-title">Resultados de Creación</h2>
-        <div id="results" class="results">Esperando resultados...</div>
     </div>
-
-    <!--
-        *** RECAPTCHA ENTERPRISE SCRIPT ***
-        Si vas a usar grecaptcha.enterprise.execute() directamente en esta página (además de App Check),
-        DEBES descomentar esta línea y reemplazar 'TU_CLAVE_PUBLICA_RECAPTCHA_ENTERPRISE' con la
-        clave de sitio (Site Key) de tu reCAPTCHA Enterprise. Asegúrate de que esta clave
-        coincide con la que usas en firebaseClient.js para App Check.
-    -->
-    <!-- <script src="https://www.google.com/recaptcha/enterprise.js?render=TU_CLAVE_PUBLICA_RECAPTCHA_ENTERPRISE"></script> -->
 
     <!-- Carga la configuración de Firebase -->
     <script type="module" src="./firebaseConfig.js"></script>
