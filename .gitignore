@@ -55,16 +55,22 @@ mis_datos_emuladores/ # <-- SUGERENCIA: Añadir tu carpeta específica
 # ABSOLUTELY ESSENTIAL: This file contains sensitive Firebase Admin SDK credentials.
 # NEVER, EVER, commit this to version control.
 serviceAccountKey.json
+**/serviceAccountKey.json
 
+# Python virtual environments
+# ---------------------------
+venv_equifax/
+venv/
+__pycache__/
+*.pyc
+*.pyo
 
 # IDE and OS specific files
 # --------------------------
-.DS_Store # macOS specific
-.vscode/ # Visual Studio Code settings
-*.swp # Vim swap files
-Thumbs.db # Windows thumbnail cache
-
-# <-- CRÍTICO: Añadir para ignorar los metadatos de Windows (:Zone.Identifier)
+.DS_Store
+.vscode/
+*.swp
+Thumbs.db
 *:Zone.Identifier
 
 # Other temporary or generated files
@@ -72,8 +78,4 @@ Thumbs.db # Windows thumbnail cache
 *.tmp
 *.bak
 .cache/
-
-
-# no subir secrets
-.env.local
-serviceAccountKey.json
+debug.log
