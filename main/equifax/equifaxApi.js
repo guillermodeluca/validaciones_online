@@ -304,7 +304,6 @@ async function getNextLevelQuestions({ questionnaireConfigurationId, transaction
     try {
         const url = `${EQUIFAX_API_BASE_URL}/validation/nextlevelquestions?product=${EQUIFAX_PRODUCT_IDENTIFIER}`;
         const payload = {
-            questionnaireConfigurationId,
             transactionId
         };
 

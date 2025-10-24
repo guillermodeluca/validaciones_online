@@ -1,19 +1,42 @@
 {
   "hosting": {
     "public": "public",
-    "rewrites": [ { "source": "**", "destination": "/index.html" } ],
-    "headers": [
-      { "source": "**/*.js", "headers": [{ "key": "Content-Type", "value": "application/javascript" }]},
-      { "source": "**/*.mjs", "headers": [{ "key": "Content-Type", "value": "application/javascript" }]}
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
     ]
   },
-  "functions": { "source": "main", "codebase": "main", "runtime": "nodejs20" },
+  "functions": {
+    "source": "main",
+    "runtime": "nodejs20"
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "emulators": {
-    "auth": { "port": 9099 },
-    "firestore": { "port": 8080 },
-    "functions": { "port": 5001 },
-    "hosting": { "port": 5000 },
-    "ui": { "enabled": true, "port": 4000 },
+    "auth": {
+      "port": 9099
+    },
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "hosting": {
+      "port": 5000
+    },
+    "ui": {
+      "port": 4000
+    },
     "singleProjectMode": true
   }
 }

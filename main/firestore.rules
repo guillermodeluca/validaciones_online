@@ -8,11 +8,9 @@ service cloud.firestore {
     }
 
     function isDeveloper() {
-      // **IMPORTANT:** Use the UID of your developer account used for debugging.
-      // Ensure this UID is correct for your development user.
-      // If using multiple UIDs, separate them with '||'.
+      // Asegúrate de que estos UIDs sean solo para desarrollo o prueba
       return request.auth.uid == 'DxHQRjM8pueeB17aO048CMLlcIWC'
-             || request.auth.uid == 'nTyLDaH1acQBmiMEmuXqMcfZgta2'; // <--- YOUR CURRENT TEST UID HERE
+             || request.auth.uid == 'nTyLDaH1acQBmiMEmuXqMcfZgta2';
     }
 
     function isAdmin() {
@@ -23,16 +21,14 @@ service cloud.firestore {
 
     // === COLLECTION-SPECIFIC RULES ===
 
+    // Reglas para la colección 'users'
     match /users/{userId} {
-      // Allow read if: it's their own document and authenticated, or developer, or admin.
       allow read: if isAuthenticated() && request.auth.uid == userId
                   || isDeveloper()
                   || isAdmin();
       
-      // Allow write if:
-      // (It's their own document and authenticated, or developer, or admin)
-      // AND (lastUpdated is null or is a timestamp)
-      // AND (validationProcess.expirationDate is null or is a timestamp)
+      // Permite escribir solo si el usuario es el propietario y los campos de timestamp son correctos
+      // O si es desarrollador/admin
       allow write: if (isAuthenticated() && request.auth.uid == userId
                        || isDeveloper()
                        || isAdmin())
@@ -40,23 +36,17 @@ service cloud.firestore {
                    && (request.resource.data.get('validationProcess.expirationDate') == null || request.resource.data.get('validationProcess.expirationDate') is timestamp);
     }
 
+    // Reglas para la colección 'fiscalDataRequests'
     match /fiscalDataRequests/{fiscalRequestId} {
-      // Allow create if: authenticated
-      // AND their UID matches the userId in the data
-      // AND requestDate is a timestamp
       allow create: if isAuthenticated()
                     && request.auth.uid == request.resource.data.userId
                     && request.resource.data.requestDate is timestamp;
       
-      // Allow read if: owner of the document and authenticated, or developer, or admin.
-      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid
                   || isDeveloper()
                   || isAdmin();
       
-      // Allow update if:
-      // (Owner of the document and authenticated, or developer, or admin)
-      // AND (requestDate is null or is a timestamp)
-      allow update: if (isAuthenticated() && request.auth.uid == resource.data.userId
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid
                        || isDeveloper()
                        || isAdmin())
                     && (request.resource.data.requestDate == null || request.resource.data.requestDate is timestamp);
@@ -64,18 +54,42 @@ service cloud.firestore {
       allow delete: if isDeveloper() || isAdmin();
     }
 
-    match /validaciones/{validationId} {
+    // Reglas para la colección 'equifaxValidations' (utilizada por tus Cloud Functions)
+    match /equifaxValidations/{validationId} {
+      // Un usuario autenticado puede CREAR un documento SI el 'userUid' en el documento es su propio UID.
+      // Esto permite que la Cloud Function (que escribe como Admin SDK) cumpla la regla implícitamente
+      // y evita escrituras maliciosas desde el cliente.
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userUid;
+
+      // Permite leer si el usuario autenticado es el propietario del documento
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userUid
+                  || isDeveloper()
+                  || isAdmin();
+
+      // Permite actualizar si el usuario autenticado es el propietario
+      // (La Cloud Function submitEquifaxQuestionnaireAnswers actualiza este documento)
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.userUid
+                   || isDeveloper()
+                   || isAdmin();
+
+      // Solo desarrolladores o administradores pueden eliminar
+      allow delete: if isDeveloper() || isAdmin();
+    }
+
+    // Reglas para la colección 'validaciones' (Si es diferente a equifaxValidations)
+    match /validaciones/{validationId} { 
       allow read: if isAuthenticated() && resource.data.ownerUid == request.auth.uid
                   || isDeveloper()
                   || isAdmin();
-      // Add your own write/update rules here if needed.
+      // Decide si necesitas reglas de create/update/delete aquí también
+      // allow write: if ...
     }
 
     match /stats/dashboard_metrics {
       allow read: if isAdmin() || isDeveloper();
     }
 
-    // === CATCH-ALL / DEFAULT DENY ===
+    // La regla comodín debe ir al final
     match /{document=**} {
       allow read, write: if isDeveloper();
     }

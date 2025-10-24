@@ -8,13 +8,12 @@ import {
     httpsCallable,
     doc,
     getDoc,
+    collection,
     onAuthStateChanged,
     updateDoc
 } from './firebaseClient.js';
 
-// **NUEVA IMPORTACIÓN: signOut directamente desde Firebase Auth SDK**
 import { signOut } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js";
-
 
 
 // --- 2. Referencias a los elementos del DOM (constantes globales) ---
@@ -40,26 +39,28 @@ const logoutBtn = document.getElementById('logoutBtn');
 
 
 // --- 3. Referencias a las Cloud Functions de Equifax (constantes globales) ---
-// ESTE BLOQUE DEBE ESTAR AQUÍ, COMO CONSTANTES GLOBALES, DESPUÉS DE LAS DEL DOM
 const initiateEquifaxSimpleValidationCallable = httpsCallable(functions, 'initiateEquifaxSimpleValidation');
 const initiateEquifaxFullValidationCallable = httpsCallable(functions, 'initiateEquifaxFullValidation');
 const submitEquifaxQuestionnaireAnswersCallable = httpsCallable(functions, 'submitEquifaxQuestionnaireAnswers');
-const testCORSCallable = httpsCallable(functions, 'testCORSFunction'); // Callable para depuración CORS
+const testCORSCallable = httpsCallable(functions, 'testCORSFunction');
 
 
 // --- 4. Variables de estado locales (globales para el script) ---
 let currentTransactionId = null;
-let currentQuestionnaire = null;
+let currentQuestionnaire = null; // Guardará el array de preguntas
+let currentEquifaxGeneratedId = null; // ID del cuestionario generado por Equifax
 let currentUserUID = null;
-let currentPersonData = null;
-let isRenderingQuestionnaire = false;
+let isPageInitializing = false;
+
+
 // --- Funciones de Utilidad (Deben ir aquí, antes del DOMContentLoaded) ---
 function showSection(sectionId) {
-    console.log("DEBUG showSection: Llamado con sectionId:", sectionId);
+    // Oculta todas las secciones
     if (mainValidationContent) mainValidationContent.classList.add('hidden');
     if (equifaxResultsDiv) equifaxResultsDiv.classList.add('hidden');
     if (equifaxQuestionnaireDiv) equifaxQuestionnaireDiv.classList.add('hidden');
 
+    // Muestra la sección específica
     if (sectionId === 'main' && mainValidationContent) {
         mainValidationContent.classList.remove('hidden');
     } else if (sectionId === 'results' && equifaxResultsDiv) {
@@ -67,10 +68,6 @@ function showSection(sectionId) {
     } else if (sectionId === 'questionnaire' && equifaxQuestionnaireDiv) {
         equifaxQuestionnaireDiv.classList.remove('hidden');
     }
-    console.log("DEBUG showSection: Estado final de visibilidad (después de mostrar):");
-    console.log("mainValidationContent hidden:", mainValidationContent?.classList.contains('hidden'));
-    console.log("equifaxResultsDiv hidden:", equifaxResultsDiv?.classList.contains('hidden'));
-    console.log("equifaxQuestionnaireDiv hidden:", equifaxQuestionnaireDiv?.classList.contains('hidden'));
 }
 
 function showMessage(type, message, duration = 5000) {
@@ -89,69 +86,73 @@ function showMessage(type, message, duration = 5000) {
 }
 
 function enableUI(enable) {
-    if (inputDocumentNumber) inputDocumentNumber.disabled = !enable;
-    if (inputGender) inputGender.disabled = !enable;
-    if (inputFullName) inputFullName.disabled = !enable;
-    if (btnRunSimpleValidation) btnRunSimpleValidation.disabled = !enable;
-    if (btnRunFullValidation) btnRunFullValidation.disabled = !enable;
-    if (btnSubmitAnswers) btnSubmitAnswers.disabled = !enable;
-    if (btnRetryEquifax) btnRetryEquifax.disabled = !enable;
-    if (testCorsBtn) testCorsBtn.disabled = !enable;
-    if (logoutBtn) logoutBtn.disabled = !enable;
+    // Lista todos los elementos que quieres habilitar/deshabilitar
+    const elementsToToggle = [
+        inputDocumentNumber, inputGender, inputFullName,
+        btnRunSimpleValidation, btnRunFullValidation, btnSubmitAnswers,
+        btnRetryEquifax, testCorsBtn, logoutBtn
+    ];
+    elementsToToggle.forEach(el => {
+        if (el) el.disabled = !enable;
+    });
 }
 
-function renderQuestionnaire(questionnaireData) {
-    console.log("DEBUG RENDER: === Inicia renderQuestionnaire ===");
-    console.log("DEBUG RENDER: questionnaireData recibido:", JSON.stringify(questionnaireData, null, 2));
-
-    if (!questionnaireData || !questionnaireData.questionsOfGeneratedQuestionnaire || questionnaireData.questionsOfGeneratedQuestionnaire.length === 0) {
-        console.log("DEBUG RENDER: No se encontraron preguntas o datos inválidos para renderizar.");
-        if (questionnaireQuestionsDiv) questionnaireQuestionsDiv.innerHTML = '<p>No hay preguntas disponibles para este cuestionario.</p>';
-        if (btnSubmitAnswers) btnSubmitAnswers.classList.add('hidden');
-        if (equifaxQuestionnaireDiv) equifaxQuestionnaireDiv.classList.add('hidden');
-        console.log("DEBUG RENDER: Cuestionario oculto por falta de preguntas.");
+function renderQuestionnaire(questionsArray) {
+    if (!questionnaireQuestionsDiv) {
+        console.error("¡ERROR! El elemento 'questionnaire-questions' no fue encontrado en el DOM.");
         return;
     }
 
-    console.log("DEBUG RENDER: Limpiando contenido anterior de questionnaireQuestionsDiv.");
-    if (questionnaireQuestionsDiv) questionnaireQuestionsDiv.innerHTML = '';
+    if (!questionsArray || !Array.isArray(questionsArray) || questionsArray.length === 0) {
+        console.log("No se encontraron preguntas o datos válidos para renderizar.");
+        questionnaireQuestionsDiv.innerHTML = '<p>No hay preguntas disponibles para este cuestionario.</p>';
+        if (btnSubmitAnswers) btnSubmitAnswers.classList.add('hidden');
+        showSection('main');
+        return;
+    }
 
-    console.log("DEBUG RENDER: Número de preguntas a renderizar:", questionnaireData.questionsOfGeneratedQuestionnaire.length);
-    questionnaireData.questionsOfGeneratedQuestionnaire.forEach((q, index) => {
+    questionnaireQuestionsDiv.innerHTML = '';
+
+    questionsArray.forEach((q, index) => {
         const questionDiv = document.createElement('div');
         questionDiv.classList.add('question-item');
+        questionDiv.setAttribute('data-question-id', q.id); 
+        
+        // Escapar el contenido HTML para prevenir XSS
+        const escapedDescription = q.description.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        let optionsHTML = '';
+        q.options.forEach(option => {
+            const escapedOptionDescription = option.description.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            optionsHTML += `
+                <label>
+                    <input type="radio" name="question_${q.id}" value="${option.id}">
+                    ${escapedOptionDescription}
+                </label>
+            `;
+        });
+
         questionDiv.innerHTML = `
-            <p>${index + 1}. ${q.description}</p>
+            <p>${index + 1}. ${escapedDescription}</p>
             <div class="options-container">
-                ${q.options.map(option => `
-                    <label>
-                        <input type="radio" name="question_${q.id}" value="${option.id}">
-                        ${option.description}
-                    </label>
-                `).join('')}
+                ${optionsHTML}
             </div>
         `;
-        if (questionnaireQuestionsDiv) questionnaireQuestionsDiv.appendChild(questionDiv);
-        console.log(`DEBUG RENDER: Añadida pregunta ${index + 1}: ${q.description.substring(0, 30)}...`);
+        questionnaireQuestionsDiv.appendChild(questionDiv);
     });
 
     if (btnSubmitAnswers) btnSubmitAnswers.classList.remove('hidden');
-    console.log("DEBUG RENDER: Botón 'Enviar Respuestas' visible.");
     
     showSection('questionnaire');
-    console.log("DEBUG RENDER: showSection('questionnaire') llamado.");
-    
-    console.log("DEBUG RENDER: === Finaliza renderQuestionnaire. Cuestionario ID:", questionnaireData.id, "Nivel:", questionnaireData.level, "===");
 }
 
 
-// --- Lógica principal de la página ---
 async function initEquifaxPageLogic(user) {
-    if (isRenderingQuestionnaire) {
-        console.log("DEBUG FRONTEND: initEquifaxPageLogic ya está en un ciclo de renderizado, omitiendo.");
+    if (isPageInitializing) {
+        console.log("initEquifaxPageLogic ya está en un ciclo de inicialización, omitiendo.");
         return;
     }
-    isRenderingQuestionnaire = true;
+    isPageInitializing = true;
 
     enableUI(false);
     if (userStatusEquifax) userStatusEquifax.textContent = 'Cargando estado del usuario...';
@@ -159,7 +160,7 @@ async function initEquifaxPageLogic(user) {
     if (!user) {
         showMessage('error', 'No se detectó un usuario autenticado. Redirigiendo a inicio...', 3000);
         setTimeout(() => window.location.href = '/ingresoAValidacion.html', 3000);
-        isRenderingQuestionnaire = false;
+        isPageInitializing = false;
         return;
     }
 
@@ -168,95 +169,88 @@ async function initEquifaxPageLogic(user) {
 
     try {
         const userDocRef = doc(db, 'users', currentUserUID);
-        const userDocSnap = await getDoc(userDocRef);
+        const userDocSnap = await getDoc(userDocRef, { source: 'server' });
 
         if (userDocSnap.exists()) {
             const userData = userDocSnap.data();
             const validationProcess = userData.validationProcess || {};
 
-            console.log("DEBUG FRONTEND: initEquifaxPageLogic - Datos completos de validationProcess:", JSON.stringify(validationProcess, null, 2));
-            console.log("DEBUG FRONTEND: initEquifaxPageLogic - Estado de validación actual en Firestore:", validationProcess.status);
-            console.log("DEBUG FRONTEND: initEquifaxPageLogic - Cuestionario en Firestore:", validationProcess.equifax?.questionnaire);
+            console.log("Datos completos de validationProcess:", JSON.stringify(validationProcess, null, 2));
+            console.log("Estado de validación actual en Firestore:", validationProcess.status);
 
             if (validationProcess.status === 'payment_confirmed') {
                 showMessage('success', 'Pago confirmado. Por favor, ingrese sus datos para iniciar la validación de Equifax.', 0);
-                if (inputDocumentNumber) inputDocumentNumber.value = validationProcess.equifax?.person?.documentNumber || "20007481";
-                if (inputGender) inputGender.value = validationProcess.equifax?.person?.gender || "M";
-                if (inputFullName) inputFullName.value = validationProcess.equifax?.person?.fullName || "Juan Perez";
+                if (inputDocumentNumber) inputDocumentNumber.value = validationProcess.equifax?.person?.documentNumber || "";
+                if (inputGender) inputGender.value = validationProcess.equifax?.person?.gender || "";
+                if (inputFullName) inputFullName.value = validationProcess.equifax?.person?.fullName || "";
                 showSection('main');
-            } else if (validationProcess.status === 'equifax_questionnaire_pending' && validationProcess.equifax && validationProcess.equifax.questionnaire) {
-                 // Si hay un cuestionario pendiente en Firestore, lo renderizamos
-                currentTransactionId = validationProcess.equifax.transactionId;
-                currentQuestionnaire = validationProcess.equifax.questionnaire;
-                currentPersonData = validationProcess.equifax.person;
-
-                console.log("DEBUG FRONTEND: currentTransactionId después de carga de Firestore (EQ_PENDING):", currentTransactionId);
-                console.log("DEBUG FRONTEND: currentQuestionnaire después de carga de Firestore (EQ_PENDING):", JSON.stringify(currentQuestionnaire, null, 2));
-
-                showMessage('info', 'Continuando validación con cuestionario pendiente...', 0);
-                renderQuestionnaire(currentQuestionnaire); // Renderiza el cuestionario de Firestore
             }
-            // Bloque 2: Si la validación de Equifax se completó y aprobó
-            else if (validationProcess.status === 'equifax_completed_pending_data' ||
-                     validationProcess.status === 'equifax_full_validation_completed' ||
-                     validationProcess.status === 'equifax_simple_validation_completed' ||
-                     validationProcess.status === 'equifax_validation_approved') {
-                
-                showMessage('success', 'Validación de identidad aprobada. Redirigiendo a tu perfil...', 3000);
-                
-                const userRole = validationProcess.role;
-                let redirectPage = '/ingresoAValidacion.html';
+            // >>>>>>> INICIO DE LA LÓGICA CORREGIDA PARA QUESTIONNAIRE_PENDING <<<<<<<
+            else if (validationProcess.status === 'questionnaire_pending' && validationProcess.equifax && validationProcess.equifax.lastTransactionId) {
+                currentTransactionId = validationProcess.equifax.lastTransactionId; // Nuestro ID interno
+                currentEquifaxGeneratedId = validationProcess.equifax.idQuestionnaireGenerated; // ID de Equifax
 
-                if (userRole === 'propietario') {
-                    redirectPage = '/propietario_test.html';
-                } else if (userRole === 'inquilino') {
-                    redirectPage = '/inquilino_test.html';
-                }
+                // Necesitamos leer el documento de la colección 'equifaxValidations' para obtener las preguntas completas
+                const equifaxValidationDocRef = doc(db, 'equifaxValidations', currentTransactionId);
+                const equifaxValidationDocSnap = await getDoc(equifaxValidationDocRef, { source: 'server' });
 
-                setTimeout(() => window.location.href = redirectPage, 3000);
-                
-                if (equifaxResultsDiv) equifaxResultsDiv.classList.add('hidden');
-                if (equifaxQuestionnaireDiv) equifaxQuestionnaireDiv.classList.add('hidden');
-                if (btnSubmitAnswers) btnSubmitAnswers.classList.add('hidden');
-            }
-            // Bloque 3: Si la validación completa ya ha sido marcada como 'completed_validated'
-            else if (validationProcess.status === 'completed_validated') {
-                showMessage('success', 'Su validación está completa y activa. Redirigiendo a su panel de usuario.', 3000);
-                if (validationProcess.role === 'propietario') {
-                    window.location.href = 'propietario_test.html';
-                } else if (validationProcess.role === 'inquilino') {
-                    window.location.href = 'inquilino_test.html';
+                if (equifaxValidationDocSnap.exists()) {
+                    const equifaxValidationData = equifaxValidationDocSnap.data();
+                    // Asumimos que las preguntas están guardadas aquí:
+                    currentQuestionnaire = equifaxValidationData.questionnaire?.questionsOfGeneratedQuestionnaire;
+
+                    if (currentQuestionnaire && currentQuestionnaire.length > 0) {
+                        console.log("currentTransactionId después de carga de Firestore (EQ_PENDING):", currentTransactionId);
+                        console.log("currentEquifaxGeneratedId después de carga de Firestore (EQ_PENDING):", currentEquifaxGeneratedId);
+                        console.log("currentQuestionnaire después de carga de Firestore (EQ_PENDING):", JSON.stringify(currentQuestionnaire, null, 2));
+
+                        showMessage('info', 'Continuando validación con cuestionario pendiente...', 0);
+                        renderQuestionnaire(currentQuestionnaire);
+                    } else {
+                        console.error("No se encontraron preguntas válidas en el documento equifaxValidations para", currentTransactionId);
+                        showMessage('warning', 'Validación pendiente pero sin preguntas. Intente de nuevo o contacte a soporte.', 0);
+                        showSection('main'); // Volver a la sección principal si no hay preguntas válidas
+                    }
                 } else {
-                    window.location.href = 'index.html';
+                    console.error("Documento equifaxValidations no encontrado para transactionId:", currentTransactionId);
+                    showMessage('warning', 'Validación pendiente, pero no se encontró el detalle del cuestionario. Contacte a soporte.', 0);
+                    showSection('main'); // Volver a la sección principal si el documento de validación no existe
                 }
             }
-            // Bloque 4: Cualquier otro estado (initial, failed, expired, o desconocido)
+            // >>>>>>> FIN DE LA LÓGICA CORREGIDA PARA QUESTIONNAIRE_PENDING <<<<<<<
+            // Otros estados de validación completada
+            else if (validationProcess.status === 'equifax_validation_approved' || validationProcess.status === 'completed_validated') {
+                showMessage('success', 'Validación de identidad aprobada. Redirigiendo a los datos fiscales...', 3000);
+
+                setTimeout(() => window.location.href = '/datos_fiscales.html', 3000);
+                showSection('none');
+            }
+            // Cualquier otro estado (initial, failed, expired, o desconocido)
             else {
                 showMessage('warning', `Estado actual: ${validationProcess.status}. Redirigiendo a inicio...`, 3000);
+                showSection('main');
                 setTimeout(() => window.location.href = '/ingresoAValidacion.html', 3000);
             }
         } else { // Si el documento del usuario no existe en Firestore
             showMessage('warning', 'Documento de usuario no encontrado en Firestore. Redirigiendo a inicio...', 3000);
+            showSection('main');
             setTimeout(() => window.location.href = '/ingresoAValidacion.html', 3000);
         }
     } catch (error) {
         console.error("Error al cargar datos de usuario en Equifax page:", error);
         showMessage('error', 'Error al cargar los datos del proceso. Intente de nuevo.', 0);
+        showSection('main');
     } finally {
         enableUI(true);
-        isRenderingQuestionnaire = false;
+        isPageInitializing = false;
     }
 }
-
-
 // --- Bloque Principal de Event Listeners ---
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DEBUG: DOMContentLoaded fired. Attempting to attach listeners.");
 
     // --- Event Listener para btnRunSimpleValidation ---
     if (btnRunSimpleValidation) {
         btnRunSimpleValidation.addEventListener('click', async () => {
-            console.log("DEBUG: ¡Botón Ejecutar Validación Simple clickeado!");
             enableUI(false);
             showMessage('info', 'Ejecutando Validación Simple...', 0);
             if (outputEquifax) outputEquifax.textContent = 'Procesando...';
@@ -268,12 +262,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fullName = inputFullName.value.trim(); 
                 const userRole = localStorage.getItem('userSelectedValidationRole');
 
-                console.log(`DEBUG FRONTEND: Valores de los campos para CF: Documento=${documentNumber}, Género=${gender}, Nombre=${fullName}, Rol=${userRole}`);
-
                 if (!documentNumber || !gender || !fullName || !userRole) {
                     showMessage('error', 'Por favor, complete todos los campos obligatorios (Número de Documento, Género, Nombre Completo) y asegúrese de que su rol esté definido.', 5000);
                     enableUI(true);
-                    console.error("DEBUG FRONTEND: Fallo en validación de campos del cliente.");
+                    console.error("Fallo en validación de campos del cliente.");
+                    showSection('main');
                     return;
                 }
 
@@ -283,48 +276,39 @@ document.addEventListener('DOMContentLoaded', () => {
                     fullName: fullName,
                     role: userRole
                 };
-                console.log("DEBUG FRONTEND: Datos que se van a enviar a initiateEquifaxSimpleValidationCallable:", JSON.stringify(dataToSend, null, 2));
 
                 const result = await initiateEquifaxSimpleValidationCallable(dataToSend);
-                console.log("DEBUG FRONTEND: Resultado COMPLETO de initiateEquifaxSimpleValidationCallable:", JSON.stringify(result, null, 2));
 
-                if (result.data && !result.data.success) {
-                    console.error("DEBUG FRONTEND: Cloud Function reportó un error de NEGOCIO:", result.data.message || "Error desconocido en CF.");
-                    showMessage('error', result.data.message || 'Error desconocido en Cloud Function.', 0);
-                    if (outputEquifax) outputEquifax.textContent = `Error: ${result.data.message || 'Error desconocido'}`;
+                if (result.data && result.data.success) {
+                    if (outputEquifax) outputEquifax.textContent = JSON.stringify(result.data, null, 2);
+                    showMessage('success', result.data.message || 'Validación Simple Finalizada con éxito.', 0);
+                    showSection('results');
+                } else {
+                    console.error("Cloud Function reportó un error de NEGOCIO:", result.data?.message || "Error desconocido en CF.");
+                    showMessage('error', result.data?.message || 'Error desconocido en Cloud Function.', 0);
+                    if (outputEquifax) outputEquifax.textContent = `Error: ${result.data?.message || 'Error desconocido'}`;
                     showSection('main');
-                    return;
                 }
 
-                if (outputEquifax) outputEquifax.textContent = JSON.stringify(result.data, null, 2);
-                showMessage('success', 'Validación Simple Finalizada.');
-
             } catch (error) {
-                console.error('DEBUG FRONTEND: Error CRÍTICO en la llamada a Cloud Function initiateEquifaxSimpleValidationCallable:', error);
-                if (error.code) console.error("DEBUG FRONTEND: Código de error:", error.code);
-                if (error.details) console.error("DEBUG FRONTEND: Detalles del error:", error.details);
+                console.error('Error CRÍTICO en la llamada a Cloud Function initiateEquifaxSimpleValidationCallable:', error);
+                if (error.code) console.error("Código de error:", error.code);
+                if (error.details) console.error("Detalles del error:", error.details);
                 if (outputEquifax) outputEquifax.textContent = `Error: ${error.message}\n${JSON.stringify(error.details || error, null, 2)}`;
                 showMessage('error', `Error en Validación Simple: ${error.message}.`);
+                showSection('main');
             } finally {
                 enableUI(true);
-                console.log("DEBUG FRONTEND: Bloque finally de btnRunSimpleValidation ejecutado.");
-                await initEquifaxPageLogic(auth.currentUser); // Reevaluar estado para ver qué hacer después
             }
         });
-        console.log("DEBUG: Listener attached to btnRunSimpleValidation successfully.");
-    } else {
-        console.error("DEBUG: ¡ERROR! El botón 'btnRunSimpleValidation' no fue encontrado en el DOM al cargar la página.");
     }
 
     // --- Event Listener para btnRunFullValidation ---
     if (btnRunFullValidation) {
         btnRunFullValidation.addEventListener('click', async () => {
-            console.log("DEBUG: ¡Botón Ejecutar Validación Completa clickeado!");
             enableUI(false);
             showMessage('info', 'Ejecutando Validación Completa (obteniendo cuestionario)...', 0);
             if (outputEquifax) outputEquifax.textContent = 'Procesando...';
-            if (equifaxQuestionnaireDiv) equifaxQuestionnaireDiv.classList.add('hidden');
-            if (btnSubmitAnswers) btnSubmitAnswers.classList.add('hidden');
             showSection('results');
 
             try {
@@ -333,95 +317,79 @@ document.addEventListener('DOMContentLoaded', () => {
                 const fullName = inputFullName.value.trim();
                 const userRole = localStorage.getItem('userSelectedValidationRole');
 
-                console.log(`DEBUG FRONTEND: Valores de los campos para CF: Documento=${documentNumber}, Género=${gender}, Nombre=${fullName}, Rol=${userRole}`); // <-- AÑADE ESTE LOG!
-                
                 if (!documentNumber || !gender || !fullName || !userRole) {
                     showMessage('error', 'Por favor, complete todos los campos obligatorios (Número de Documento, Género, Nombre Completo) y asegúrese de que su rol esté definido.', 5000);
                     enableUI(true);
-                    console.error("DEBUG FRONTEND: Fallo en validación de campos del cliente (userRole podría ser null)."); // <-- Nuevo log
+                    console.error("Fallo en validación de campos del cliente (userRole podría ser null).");
+                    showSection('main');
                     return;
                 }
 
                 const dataToSend = {
                     documentNumber: documentNumber,
                     gender: gender,
-                    fullName: fullName,
-                    role: userRole
+                    fullName: fullName
+                    // questionnaireConfigurationId NO se envía desde el frontend; la CF lo obtiene de un secreto
                 };
-                
-                console.log("DEBUG FRONTEND: Datos que se van a enviar a initiateEquifaxFullValidationCallable:", JSON.stringify(dataToSend, null, 2));
-                
+
                 const result = await initiateEquifaxFullValidationCallable(dataToSend);
-                
-                console.log("DEBUG FRONTEND: Resultado COMPLETO de initiateEquifaxFullValidationCallable:", JSON.stringify(result, null, 2));
-                console.log("DEBUG FRONTEND: Propiedad 'success' de la respuesta:", result.data.success);
-                console.log("DEBUG FRONTEND: Propiedad 'questionnaire' de la respuesta:", result.data.questionnaire);
-                        
+
                 if (result.data && !result.data.success) {
-                    console.error("DEBUG FRONTEND: Cloud Function reportó un error de NEGOCIO:", result.data.message || "Error desconocido en CF.");
+                    console.error("Cloud Function reportó un error de NEGOCIO:", result.data.message || "Error desconocido en CF.");
                     showMessage('error', result.data.message || 'Error desconocido en Cloud Function.', 0);
                     if (outputEquifax) outputEquifax.textContent = `Error: ${result.data.message || 'Error desconocido'}`;
                     showSection('main');
                     return;
                 }
-                
-                // --- NUEVA LÓGICA: Si la CF devuelve un cuestionario, guardarlo localmente y luego re-evaluar ---
-                if (result.data && result.data.success && result.data.questionnaire) {
-                    currentTransactionId = result.data.transactionId;
-                    currentQuestionnaire = result.data.questionnaire;
-                    currentPersonData = result.data.person;
-                    showMessage('success', 'Cuestionario de Equifax recibido. Por favor, responda las preguntas.', 5000);
-                    renderQuestionnaire(currentQuestionnaire); // Renderizar directamente el cuestionario
-                    // No necesitamos llamar a initEquifaxPageLogic aquí si renderizamos directamente.
-                    // La re-evaluación se hará si el usuario recarga o termina el cuestionario.
-                    // Eliminamos la llamada a outputEquifax.textContent si no queremos mostrar el JSON completo aquí.
-                } else if (result.data && result.data.success && !result.data.questionnaire) {
-                     // Caso: CF exitosa pero sin cuestionario (podría ser para simple validation, o un error lógico)
-                    showMessage('warning', 'Validación iniciada, pero no se recibió un cuestionario. Contacte a soporte o reintente.', 0);
-                    showSection('main');
+
+                // --- LÓGICA CLAVE: Si la CF devuelve un cuestionario, guardarlo y renderizarlo ---
+                // Aquí usamos result.data.questionnaire y result.data.idQuestionnaireGenerated
+                if (result.data && result.data.success && result.data.questionnaire && result.data.questionnaire.length > 0) {
+                    currentTransactionId = result.data.transactionId; // Nuestro ID interno
+                    currentQuestionnaire = result.data.questionnaire; // Array de preguntas
+                    currentEquifaxGeneratedId = result.data.idQuestionnaireGenerated; // ID de Equifax
+
+                    showMessage('success', 'Cuestionario de Equifax recibido. Por favor, responda las preguntas.', 0);
+                    renderQuestionnaire(currentQuestionnaire);
+                    return;
                 } else {
-                    // Este else debería ser capturado por el if (result.data && !result.data.success) anterior.
-                    // Pero como fallback, si no es éxito ni error explícito.
-                    showMessage('warning', 'Respuesta inesperada de la validación. Contacte a soporte.', 0);
+                    showMessage('warning', 'Validación iniciada, pero no se recibió un cuestionario o está vacío. Contacte a soporte o reintente.', 0);
                     showSection('main');
+                    return;
                 }
 
             } catch (error) {
-                console.error('DEBUG FRONTEND: Error CRÍTICO en la llamada a Cloud Function initiateEquifaxFullValidationCallable:', error);
-                if (error.code) console.error("DEBUG FRONTEND: Código de error:", error.code);
-                if (error.details) console.error("DEBUG FRONTEND: Detalles del error:", error.details);
-                
+                console.error('Error CRÍTICO en la llamada a Cloud Function initiateEquifaxFullValidationCallable:', error);
+                if (error.code) console.error("Código de error:", error.code);
+                if (error.details) console.error("Detalles del error:", error.details);
+
                 if (outputEquifax) outputEquifax.textContent = `Error: ${error.message}\n${JSON.stringify(error.details || error, null, 2)}`;
                 showMessage('error', `Error en Validación Completa: ${error.message}.`);
-                // await initEquifaxPageLogic(auth.currentUser); // Comentado, ya que renderizamos directamente
+                showSection('main');
             } finally {
                 enableUI(true);
-                console.log("DEBUG FRONTEND: Bloque finally de btnRunFullValidation ejecutado.");
             }
         });
-        console.log("DEBUG: Listener attached to btnRunFullValidation successfully.");
     } else {
-        console.error("DEBUG: ¡ERROR! El botón 'btnRunFullValidation' no fue encontrado en el DOM al cargar la página.");
+        console.error("¡ERROR! El botón 'btnRunFullValidation' no fue encontrado en el DOM al cargar la página.");
     }
 
-    // --- Event Listener para enviar respuestas del cuestionario ---
     if (btnSubmitAnswers) {
         btnSubmitAnswers.addEventListener('click', async () => {
-            console.log("DEBUG: ¡Botón Enviar Respuestas clickeado!");
             enableUI(false);
             showMessage('info', 'Enviando respuestas del cuestionario...', 0);
 
-            if (!currentTransactionId || !currentQuestionnaire) {
-                showMessage('error', 'No hay cuestionario o transacción activa para enviar respuestas.');
+            if (!currentTransactionId || !currentQuestionnaire || !currentEquifaxGeneratedId) {
+                showMessage('error', 'No hay cuestionario o transacción activa para enviar respuestas. (Falta Transaction ID, Cuestionario o ID Generado por Equifax).');
                 enableUI(true);
                 return;
             }
 
-            const totalQuestions = currentQuestionnaire.questionsOfGeneratedQuestionnaire.length;
+            const totalQuestions = currentQuestionnaire.length;
             const checkedRadioButtons = questionnaireQuestionsDiv.querySelectorAll('input[type="radio"]:checked');
 
             if (checkedRadioButtons.length !== totalQuestions) {
-                console.error("DEBUG FRONTEND: Falla la validación del cliente: preguntas respondidas no coincide con el total.");
+                console.error("Falla la validación del cliente: preguntas respondidas no coincide con el total.");
                 showMessage('error', 'Por favor, responde todas las preguntas del cuestionario.');
                 enableUI(true);
                 return;
@@ -432,42 +400,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 idQuestion: parseInt(input.name.split('_')[1])
             }));
 
+            const userRole = localStorage.getItem('userSelectedValidationRole');
+
+            if (!userRole) {
+                showMessage('error', 'No se pudo determinar el rol del usuario para enviar las respuestas.');
+                enableUI(true);
+                return;
+            }
+
             try {
                 const dataToSend = {
-                    idQuestionnaireGenerated: currentQuestionnaire.id,
-                    idTransaction: currentTransactionId,
-                    questionnaireResponse: questionnaireResponse,
+                    transactionId: currentTransactionId, // Nuestro ID interno
+                    questionnaireResponses: questionnaireResponse,
                     userUid: currentUserUID,
-                    personData: currentPersonData
+                    userRole: userRole,
+                    // idQuestionnaireGenerated NO se envía desde el frontend; la CF lo obtiene de Firestore
                 };
-                console.log("DEBUG FRONTEND: Datos que se van a enviar a submitEquifaxQuestionnaireAnswersCallable:", JSON.stringify(dataToSend, null, 2));
 
                 const result = await submitEquifaxQuestionnaireAnswersCallable(dataToSend);
-                console.log("DEBUG FRONTEND: Resultado envío respuestas (desde Cloud Function):", result.data);
 
                 const { success, validationStatus, questionnaire: newQuestionnaireFromCallable } = result.data;
 
-                console.log(`DEBUG FRONTEND: Estado de validación recibido: ${validationStatus}`);
+                console.log(`Estado de validación recibido: ${validationStatus}`);
                 if (newQuestionnaireFromCallable) {
-                    console.log(`DEBUG FRONTEND: Cuestionario nuevo recibido (ID: ${newQuestionnaireFromCallable.id}, Nivel: ${newQuestionnaireFromCallable.level})`);
+                    console.log(`Cuestionario nuevo recibido (ID: ${newQuestionnaireFromCallable.id || 'N/A'}, Nivel: ${newQuestionnaireFromCallable.level || 'N/A'})`);
                 }
 
-                if (validationStatus === 'PENDING_SECOND_LEVEL_QUESTIONNAIRE' && newQuestionnaireFromCallable) {
-                    console.log("DEBUG FRONTEND: La condición 'PENDING_SECOND_LEVEL_QUESTIONNAIRE' Y 'newQuestionnaireFromCallable' se CUMPLIÓ.");
-                    currentQuestionnaire = newQuestionnaireFromCallable;
-                    showMessage('success', 'Cuestionario de segundo nivel recibido. Por favor, responda las nuevas preguntas.', 0);
+                if (validationStatus === 'PENDING_SECOND_LEVEL_QUESTIONNAIRE' && newQuestionnaireFromCallable && newQuestionnaireFromCallable.length > 0) {
+                    currentQuestionnaire = newQuestionnaireFromCallable; // Carga el nuevo cuestionario
+                    showMessage('info', 'Por favor, responda el cuestionario de segundo nivel.', 0);
                     renderQuestionnaire(currentQuestionnaire);
-
-                    const userDocRef = doc(db, 'users', currentUserUID);
-                    await updateDoc(userDocRef, {
-                        'validationProcess.status': 'equifax_questionnaire_pending',
-                        'validationProcess.equifax.questionnaire': newQuestionnaireFromCallable,
-                        'validationProcess.equifax.timestamp': new Date(), // <-- Cambiado a 'equifax.timestamp'
-                    }, { merge: true });
-                    console.log("DEBUG FRONTEND: Cuestionario de segundo nivel renderizado directamente y Firestore actualizado localmente.");
-
+                    return;
+                } else if (success && (validationStatus === 'equifax_validation_approved' || validationStatus === 'completed_validated')) {
+                     showMessage('success', result.data.message || 'Validación de Equifax completada y aprobada. Redirigiendo...', 3000);
+                     setTimeout(() => {
+                         window.location.href = '/datos_fiscales.html';
+                     }, 3000);
                 } else {
-                    console.log("DEBUG FRONTEND: La condición 'PENDING_SECOND_LEVEL_QUESTIONNAIRE' Y 'newQuestionnaireFromCallable' NO se CUMPLIÓ. Recurriendo a initEquifaxPageLogic.");
+                    console.log("La condición 'PENDING_SECOND_LEVEL_QUESTIONNAIRE' Y 'newQuestionnaireFromCallable' NO se CUMPLIÓ. Recurriendo a initEquifaxPageLogic.");
                     showMessage('info', 'Respuestas enviadas. Actualizando estado general...', 0);
                     await initEquifaxPageLogic(auth.currentUser);
                 }
@@ -480,15 +450,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 enableUI(true);
             }
         });
-        console.log("DEBUG: Listener attached to btnSubmitAnswers successfully.");
-    } else {
-        console.error("DEBUG: ¡ERROR! El botón 'btnSubmitAnswers' no fue encontrado en el DOM al cargar la página.");
     }
-
+    
     // --- Manejador de evento para el botón de prueba CORS. ---
     if (testCorsBtn) {
         testCorsBtn.addEventListener('click', async () => {
-            console.log("DEBUG: ¡Botón Probar CORS Función clickeado!");
             enableUI(false);
             showMessage('info', 'Probando función CORS...', 0);
             try {
@@ -502,18 +468,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 enableUI(true);
             }
         });
-        console.log("DEBUG: Listener attached to testCorsBtn successfully.");
-    } else {
-        console.error("DEBUG: ¡ERROR! El botón 'testCorsBtn' no fue encontrado en el DOM al cargar la página.");
     }
     
     // --- Manejador de evento para el botón de Cerrar Sesión (logoutBtn) ---
-    // Si no tienes un logoutBtn en ingresar-datos-equifax.html, este bloque debe eliminarse.
     if (logoutBtn) {
         logoutBtn.addEventListener('click', async () => {
-            console.log("DEBUG: ¡Botón Cerrar Sesión clickeado!");
             try {
-                await signOut(auth); // Asegúrate de que signOut esté importado
+                await signOut(auth);
                 showMessage('info', 'Sesión cerrada. Redirigiendo...', 1500);
                 setTimeout(() => {
                     window.location.href = '/ingresoAValidacion.html';
@@ -523,13 +484,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 showMessage('error', 'Error al cerrar sesión: ' + error.message, 0);
             }
         });
-        console.log("DEBUG: Listener attached to logoutBtn successfully.");
     }
 }); // <-- FIN DEL DOMContentLoaded
 
-
 // --- Inicialización: Asegura que el usuario esté autenticado al cargar la página ---
 onAuthStateChanged(auth, (user) => {
-    console.log("DEBUG: onAuthStateChanged fired from ingresar-datos-equifax.js");
     initEquifaxPageLogic(user);
 });
